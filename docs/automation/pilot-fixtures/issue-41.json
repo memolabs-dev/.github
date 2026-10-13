@@ -1,0 +1,15 @@
+{
+  "base_sha": "985e4eeeaa6a9fcb8009d3eeaca03427031dcc74",
+  "claim_id": "f3bb6d3b58cb4118b76185a8eb34cacc",
+  "deployment_performed": false,
+  "epoch": 2,
+  "fence_sha": "01a8af84683f6463fb9e4fae94aef61c4af400ea",
+  "issue": "https://github.com/memolabs-dev/.github/issues/41",
+  "kind": "MEMO_STAR_PILOT_FIXTURE_V1",
+  "lease_ref": "refs/heads/star-lease-v1/64154ff8f63aea056a2d6f0e05167875447fde8a1f6cdd49cb451e45636645ac",
+  "product_modified": false,
+  "source_blob_sha": "6122d0cfe13cc26ab3c1aec1277641df5b6ad6c7",
+  "source_path": "docs/automation-architecture.md",
+  "task_code_executed": false,
+  "test_result": "PASS: disposable JSON round-trip"
+}
