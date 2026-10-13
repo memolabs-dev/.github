@@ -1,4 +1,6 @@
 import unittest
+import ast
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,8 +15,19 @@ class UniGovernanceContractTests(unittest.TestCase):
             "python3 -m unittest discover -s tests -p 'test_*.py'", text
         )
         self.assertIn('expect = "OK"', text)
-        self.assertIn("tests/**", text)
-        self.assertIn("scripts/**", text)
+        self.assertIn("files = [", text)
+        begin = text.index("files = [") + len("files = ")
+        end = text.index("]", begin) + 1
+        paths = ast.literal_eval(text[begin:end])
+        # UNI v0.9.4 matches globs by complete path segment and traverses
+        # gitignored backups; explicitly bind only Git-tracked sources.
+        expected = subprocess.check_output(
+            ["git", "ls-files", "tests", "scripts", "github-apps", ".github/workflows"],
+            cwd=str(ROOT), text=True,
+        ).splitlines()
+        self.assertEqual(paths, expected)
+        self.assertEqual(len(paths), len(set(paths)))
+        self.assertTrue(all("*" not in item for item in paths))
         self.assertIn("timeout = 180", text)
 
     def test_dsl_contract_has_a_required_claim(self):
