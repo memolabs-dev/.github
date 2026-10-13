@@ -1,0 +1,12 @@
+VERSION 0.1
+DOMAIN software
+INTENT memolabs.governance
+GOAL
+  Governance checks remain reproducibly green.
+CLAIM governance-tests REQUIRED
+  ENSURE the repository automation and security tests pass
+VERIFY governance-tests
+  USING governance.tests
+ACCEPT WHEN
+  required_claims == VERIFIED
+  AND critical_failures == 0
