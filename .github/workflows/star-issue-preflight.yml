@@ -1,0 +1,48 @@
+name: STAR Issue preflight (manual, read-only)
+
+# P0 controlled pilot: no agent, no code execution from Issue content.
+on:
+  workflow_dispatch:
+    inputs:
+      target_repository:
+        description: "Repository to inspect (public allowlist only)"
+        required: true
+        type: choice
+        options:
+          - memolabs-dev/.github
+          - memolabs-dev/cuesheet
+          - memolabs-dev/uni-protocol
+          - memolabs-dev/problem-intelligence-engine
+          - memolabs-dev/drop
+          - memolabs-dev/lab-hub
+      issue_number:
+        description: "Existing issue number to examine"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: star-preflight-${{ inputs.target_repository }}-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.repository == 'memolabs-dev/.github' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify eligible issue; emit receipt only (no execution)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_REPO: ${{ inputs.target_repository }}
+          TARGET_ISSUE: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+          python3 scripts/issue_preflight.py --repo "$TARGET_REPO" --issue "$TARGET_ISSUE" --json
