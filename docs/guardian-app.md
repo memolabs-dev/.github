@@ -1,5 +1,32 @@
 # memo-labs-guardian — GitHub App, pilote contrôlé
 
+## Enregistrement automatisé au maximum depuis le Mac
+
+Le CLI `gh` **ne sait pas créer directement** une GitHub App au nom d'une organisation via une API autonome. GitHub exige une validation du propriétaire dans son interface ; ce n'est pas un problème de permissions du token CLI. Pour éviter le formulaire manuel, nous avons préparé le flux officiel **GitHub App Manifest** :
+
+- Configuration auditée : [`github-apps/memo-labs-guardian.manifest.json`](../github-apps/memo-labs-guardian.manifest.json) ;
+- Outil local sans dépendance tierce : [`scripts/register-guardian.py`](../scripts/register-guardian.py).
+
+Dans le clone local `memolabs-org-gh` :
+
+```bash
+python3 scripts/register-guardian.py --doctor
+python3 scripts/register-guardian.py --register
+```
+
+Le programme ouvre une page GitHub préconfigurée (permissions minimales, webhooks inactifs). **GitHub demande au propriétaire de confirmer l'enregistrement** : cette validation ne peut pas être simulée avec `gh`. Ensuite le programme récupère automatiquement la clé privée via le code à usage unique (validité limitée), l'enregistre uniquement dans le coffre Mac avec permissions `0600`, renseigne le secret et la variable GitHub Actions sans afficher les clés, puis ouvre la page d'installation. **Il faut également confirmer l'installation dans GitHub** en ne sélectionnant que `.github`.
+
+Quand l'installation est confirmée :
+
+```bash
+python3 scripts/register-guardian.py --verify
+```
+
+Cela déclenche le test **neutre** déjà versionné, sans autoriser de fusion ni de déploiement. Le script refuse d'écraser une clé existante et ne publie jamais les jetons ni les valeurs de secrets. N'utilisez pas l'option `--register` si l'application existe déjà : privilégier le suivi de son installation existante.
+
+**Statut au 13 octobre 2026 :** manifeste et programme testés en mode `--doctor` ; pas d'enregistrement ni d'installation Guardian effectué sans la confirmation GitHub du propriétaire.
+
+
 **État** : non créée/non installée au 13 octobre 2026. GitHub CLI opérationnel, mais **enregistrement GitHub App par le propriétaire via la page web** ; l'API de conversion depuis un manifeste exige aussi une étape de consentement navigateur avec un code temporaire.
 
 ## Paramètres exacts d'enregistrement

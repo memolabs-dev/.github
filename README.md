@@ -5,7 +5,7 @@ Gouvernance GitHub de [memolabs-dev](https://github.com/memolabs-dev).
 ## État réel — 13 octobre 2026
 
 - **memo-labs-automation[bot]** : application GitHub en place ; installation initiale sur `.github` et `cuesheet`, preuve d'écriture et CI vérifiées.
-- **memo-labs-guardian** : architecture définie, **application non encore enregistrée**. Son workflow de preuve est préparé, non exécuté.
+- **memo-labs-guardian** : architecture et manifeste préparés, **application non encore enregistrée**. [Assistant CLI de création](scripts/register-guardian.py) utilisant le flux GitHub officiel avec consentement propriétaire, workflow de preuve préparé mais non exécuté.
 - **memo-labs-release** : hypothèse pour une phase ultérieure ; aucune application créée.
 - **drop-agent-bot** : compte utilisateur technique maintenu temporairement pour compatibilité, jetons non révoqués.
 

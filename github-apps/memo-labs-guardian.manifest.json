@@ -1,0 +1,18 @@
+{
+  "name": "memo-labs-guardian",
+  "url": "https://github.com/memolabs-dev",
+  "description": "Independent checks and evidence verification for Memo Labs.",
+  "public": false,
+  "hook_attributes": {
+    "url": "https://github.com/memolabs-dev",
+    "active": false
+  },
+  "request_oauth_on_install": false,
+  "default_events": [],
+  "default_permissions": {
+    "contents": "read",
+    "pull_requests": "read",
+    "actions": "read",
+    "checks": "write"
+  }
+}
