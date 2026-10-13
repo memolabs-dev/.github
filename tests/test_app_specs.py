@@ -52,6 +52,18 @@ class AppManifestTests(unittest.TestCase):
         for repo in ["uni-protocol", "drop", "cuesheet", "lab-console", "emargo"]:
             self.assertIn(repo, body)
 
+    def test_guardian_ci_preflight_is_manual_informational_and_non_mutating(self):
+        body = (ROOT / ".github/workflows/guardian-ci-provenance-smoke.yml").read_text()
+        self.assertIn("workflow_dispatch:", body)
+        self.assertIn("github.ref == 'refs/heads/main'", body)
+        self.assertIn("permissions:\n  contents: read", body)
+        self.assertIn("persist-credentials: false", body)
+        self.assertIn("python3 scripts/guardian-ci-preflight.py", body)
+        self.assertNotIn("pull_request_target:", body)
+        self.assertNotIn("permission-checks: write", body)
+        self.assertNotIn("gh api -X POST", body)
+        self.assertNotIn("gh pr merge", body)
+
 
 if __name__ == "__main__":
     unittest.main()
