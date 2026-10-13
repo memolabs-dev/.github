@@ -1,4 +1,6 @@
-# GitHub STAR Issue lease v1 — candidate (not deployed)
+# GitHub STAR Issue lease v1
+
+**Owner: Memo Coordinator.** Memo Bridge serves this ledger to every AI client (`memolabs-dev/memo-bridge`, `docs/COORDINATOR.md`) and its CI runs the script from this repository's `main`. Changes must keep the CLI, the JSON receipts and the `LEASE_DENIED` messages backward compatible.
 
 **Scope:** public Issues from the preflight allowlist only, in `memolabs-dev/.github`. GitHub Projects remains separate.
 

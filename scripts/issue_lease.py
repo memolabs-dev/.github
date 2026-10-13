@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Candidate GitHub Git-ref lease for public STAR Issues; never executes tasks."""
+"""GitHub Git-ref lease for public STAR Issues; never executes tasks.
+
+Owned by Memo Coordinator: this is the lease backend that memolabs-dev/memo-bridge serves to
+every AI client (docs/COORDINATOR.md there). memo-bridge CI runs it from this repository's main
+branch, so any change here must keep that CI green. Keep the CLI, its JSON receipts and its
+LEASE_DENIED messages backward compatible.
+"""
 import argparse
 from datetime import datetime,timedelta,timezone
 import hashlib,json,re,subprocess,sys,uuid
