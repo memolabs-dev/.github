@@ -59,7 +59,7 @@ Déclencher manuellement **Verify Memo Labs GitHub App** depuis Actions. Il doit
 - Première PR émise par la GitHub App : [`memolabs-dev/.github#1`](https://github.com/memolabs-dev/.github/pull/1), **draft**.
 - Accès réel à CUESHEET avec jeton limité : [`Actions #38380373269`](https://github.com/memolabs-dev/.github/actions/runs/38380373269) — **success**.
 - PR créée par la GitHub App dans CUESHEET : [`memolabs-dev/cuesheet#57`](https://github.com/memolabs-dev/cuesheet/pull/57), **draft**, tests CI obligatoires réussis ; fusion volontairement désactivée.
-- Transition de l'allowlist auto-merge : [`memolabs-dev/cuesheet#58`](https://github.com/memolabs-dev/cuesheet/pull/58) ; sa fusion est soumise à la CI GitHub. La nouvelle identité est ajoutée **sans retirer** `drop-agent-bot`.
+- Transition de l'allowlist auto-merge : [`memolabs-dev/cuesheet#58`](https://github.com/memolabs-dev/cuesheet/pull/58) — **fusionnée automatiquement après tests obligatoires verts**. La nouvelle identité est ajoutée **sans retirer** `drop-agent-bot`.
 - Emplacement de la clé privée sur le Mac : `~/.config/memolabs/secrets/github-app/memo-labs-automation.private-key.pem` (0600). Aucun secret dans le dépôt.
 
 ## Basculement progressif (après smoke vert)
