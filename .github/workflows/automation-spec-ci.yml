@@ -8,12 +8,14 @@ on:
       - scripts/**
       - tests/**
       - .github/workflows/**
+      - .uni/**
   pull_request:
     paths:
       - github-apps/**
       - scripts/**
       - tests/**
       - .github/workflows/**
+      - .uni/**
   workflow_dispatch:
 
 permissions:
