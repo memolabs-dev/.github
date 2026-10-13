@@ -1,0 +1,36 @@
+name: UNI governance assurance (deterministic)
+
+# Runs a version-pinned UNI verifier against a contract and trusted registry.
+# This is independent test execution, not an AI review or a Guardian App verdict.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .uni/config.toml
+      - uni/intents/**
+      - github-apps/**
+      - scripts/**
+      - tests/**
+      - .github/workflows/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  uni-governance:
+    if: github.repository == 'memolabs-dev/.github' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout governance source without persisted credentials
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Verify owner-defined governance contract with UNI v0.9.4
+        uses: memolabs-dev/uni-protocol/adapters/github@7c78bcca315d45ad4ed456082e29ed70b43dbe66
+        with:
+          version: v0.9.4
+          contract: uni/intents/governance.uni
+          report-to-summary: 'true'
