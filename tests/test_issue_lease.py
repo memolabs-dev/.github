@@ -83,3 +83,18 @@ class TestLease(unittest.TestCase):
             "issue_updated_at":"2026-10-13T12:00:01Z","issue_body_sha256":"a"*64})
         with self.assertRaises(m.Denied):altered.verify(REPO,44,"pilot-one",a["claim_id"],a["fence_sha"])
 if __name__=="__main__":unittest.main()
+
+class TestStatus(unittest.TestCase):
+    def setUp(self):
+        self.store=MemoryGit();self.clock=[NOW]
+        self.lease=m.Lease(api=self.store,eligible=eligible,clock=lambda:self.clock[0])
+    def test_status_exposes_the_public_owner_fields_for_recovery(self):
+        self.assertEqual(self.lease.status(REPO,44)["state"],"unclaimed")
+        a=self.lease.claim(REPO,44,"pilot-one",ttl=60)
+        s=self.lease.status(REPO,44)
+        self.assertEqual((s["state"],s["worker"],s["claim_id"],s["fence_sha"],s["epoch"],s["expired"]),
+                         ("claimed","pilot-one",a["claim_id"],a["fence_sha"],1,False))
+        self.clock[0]=NOW+timedelta(seconds=61)
+        self.assertTrue(self.lease.status(REPO,44)["expired"])
+        self.lease.claim(REPO,44,"pilot-two")
+        self.assertEqual(self.lease.status(REPO,44)["worker"],"pilot-two")
