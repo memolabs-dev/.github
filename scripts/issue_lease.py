@@ -109,6 +109,16 @@ class Lease:
             except Exception:pass
             raise Denied("Post-claim preflight failed; execution forbidden") from None
         return self.receipt(key,child,r)
+    def status(self,repo,number):
+        """Read-only view of the lease. Worker, claim ID and expiry are already public in the
+        lease commit; exposing them lets a client recover a claim whose write outcome it lost."""
+        key,sha,r=self.current(repo,number)
+        if not r:
+            return {"reference":key,"fence_sha":None,"state":"unclaimed","epoch":None,"expired":False,
+                    "worker":None,"claim_id":None,"expires_at":None}
+        return {"reference":key,"fence_sha":sha,"state":r["state"],"epoch":r["epoch"],
+                "expired":date(r["expires_at"])<=self.clock() if r["state"]=="claimed" else False,
+                "worker":r["worker"],"claim_id":r["claim_id"],"expires_at":r["expires_at"]}
     def owned(self,repo,number,worker,claim_id,fence):
         if not WORKER.fullmatch(worker) or not ID.fullmatch(claim_id) or not SHA.fullmatch(fence):
             raise Denied("Invalid ownership parameters")
@@ -149,11 +159,7 @@ def cli():
         if action=="release":p.add_argument("--outcome",required=True,choices=OUTCOMES)
     args=parser.parse_args();manager=Lease()
     try:
-        if args.action=="status":
-            key,sha,r=manager.current(args.repo,args.issue)
-            result={"reference":key,"fence_sha":sha,"state":r["state"] if r else "unclaimed",
-                    "epoch":r["epoch"] if r else None,
-                    "expired":date(r["expires_at"])<=manager.clock() if r and r["state"]=="claimed" else False}
+        if args.action=="status":result=manager.status(args.repo,args.issue)
         elif args.action=="claim":result=manager.claim(args.repo,args.issue,args.worker,args.ttl)
         elif args.action=="verify":result=manager.verify(args.repo,args.issue,args.worker,args.claim_id,args.fence)
         elif args.action=="heartbeat":result=manager.heartbeat(args.repo,args.issue,args.worker,args.claim_id,args.fence,args.ttl)
