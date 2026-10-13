@@ -14,6 +14,7 @@ Gouvernance GitHub de [memolabs-dev](https://github.com/memolabs-dev).
 - [Architecture cible, répartition des identités et décisions](docs/automation-architecture.md)
 - [Guardian : création, permissions minimales et vérification](docs/guardian-app.md)
 - [Ordre de migration et critères de sortie](docs/migration-matrix.md)
+- [Audit en lecture seule des protections de branches (9 dépôts)](docs/branch-protection-baseline.md)
 - [Historique du remplacement de l'ancien bot](docs/github-app-migration.md)
 
 ## Tests disponibles
