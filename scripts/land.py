@@ -135,6 +135,26 @@ def retire_branch(repo, head_ref, base_ref):
     return moved
 
 
+def close_linked_issues(repo, number):
+    """Close the Issues the PR declares it closes ("Closes #n"), in the same repository.
+
+    GitHub does not apply closing keywords to merges made with GITHUB_TOKEN, so the contract
+    does it. Needs `issues: write` from the caller; without it, nothing is closed and the
+    verdict says so.
+    """
+    data = gh(["pr", "view", str(number), "--repo", repo, "--json", "closingIssuesReferences"])
+    closed = []
+    for ref in data.get("closingIssuesReferences", []):
+        owner = ((ref.get("repository") or {}).get("owner") or {}).get("login")
+        name = (ref.get("repository") or {}).get("name")
+        if f"{owner}/{name}" != repo:
+            continue
+        gh(["issue", "close", str(ref["number"]), "--repo", repo, "--reason", "completed",
+            "--comment", f"Closed by #{number}, landed by the Memo Labs landing contract."], as_json=False)
+        closed.append(ref["number"])
+    return closed
+
+
 def report(verdict):
     line = json.dumps(verdict, sort_keys=True)
     print(line)
@@ -184,6 +204,11 @@ def main(argv=None):
                 except RuntimeError as error:
                     verdict["branch_kept"] = str(error)
                     exit_code = 1
+                try:
+                    verdict["closed_issues"] = close_linked_issues(args.repo, number)
+                except RuntimeError as error:
+                    # Not fatal: the merge stands; the caller may lack `issues: write`.
+                    verdict["issues_not_closed"] = str(error)
                 # Merges made with GITHUB_TOKEN do not trigger push workflows: run them explicitly.
                 try:
                     for workflow in args.dispatch:

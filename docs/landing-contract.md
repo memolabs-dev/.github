@@ -21,7 +21,7 @@ Une PR est fusionnée si toutes ces conditions sont vraies sur le SHA testé :
 5. tous les check runs et statuts de ce SHA sont terminés et verts (`success`, `neutral` ou `skipped`), et au moins un existe ;
 6. chaque preuve requise par le dépôt (`required_checks`, par exemple un reçu UNI ou Guardian) est présente et en `success`.
 
-La fusion utilise `--match-head-commit`, si bien qu'un push plus récent et non testé ne peut jamais être fusionné à sa place. Après fusion, les PR empilées sur la branche fusionnée sont reportées sur sa base, puis la branche est supprimée. Supprimer une branche par l'API fermerait ces PR : constaté le 13 octobre 2026 sur memo-bridge #6. Si un report échoue, la branche est conservée.
+La fusion utilise `--match-head-commit`, si bien qu'un push plus récent et non testé ne peut jamais être fusionné à sa place. Après fusion, les PR empilées sur la branche fusionnée sont reportées sur sa base, puis la branche est supprimée. Supprimer une branche par l'API fermerait ces PR : constaté le 13 octobre 2026 sur memo-bridge #6. Si un report échoue, la branche est conservée. Le contrat ferme aussi les issues que la PR déclare fermer (« Closes #n ») dans le même dépôt : GitHub n'applique pas ces mots-clés aux fusions faites avec `GITHUB_TOKEN`. Le contrat a besoin pour cela de `issues: write`. Sans cette permission, la fusion reste valide et le verdict l'indique.
 
 ## Pourquoi ce mécanisme
 
