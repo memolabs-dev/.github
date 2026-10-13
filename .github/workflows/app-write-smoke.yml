@@ -1,0 +1,51 @@
+name: Verify GitHub App write identity
+
+# Manually creates a DRAFT documentation PR using a scoped GitHub App token.
+# Does not merge, deploy, read PR code, or modify other repositories.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app-pr-smoke:
+    if: github.repository == 'memolabs-dev/.github' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mint narrowly scoped application token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.MEMOLABS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MEMOLABS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: .github
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open a draft proof PR as GitHub App
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          branch="verification/app-writer-${GITHUB_RUN_ID}"
+          head_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/heads/${branch}" -f sha="$head_sha" >/dev/null
+          doc="# GitHub App identity proof
+
+          This draft-only proof was authored by the Memo Labs GitHub App.
+          Workflow run: ${GITHUB_RUN_ID}.
+          No production code or deployment was changed."
+          content="$(printf '%s\n' "$doc" | base64 -w0)"
+          gh api -X PUT "repos/${GITHUB_REPOSITORY}/contents/docs/app-writer-proof.md" \
+            -f message='test: verify GitHub App contents write' \
+            -f content="$content" -f branch="$branch" >/dev/null
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/pulls" \
+            -f title='test: verify GitHub App author identity' \
+            -f head="$branch" -f base=main -F draft=true \
+            -f body="Draft-only proof of GitHub App write access. Source run: ${GITHUB_RUN_ID}. No merge requested." \
+            --jq '.html_url'
