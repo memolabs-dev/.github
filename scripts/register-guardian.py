@@ -66,6 +66,34 @@ def safe_store_key(pem):
         output.flush()
         os.fsync(output.fileno())
 
+def store_app_identity(kind, app_id):
+    """Persist only the public App ID for later short-lived token minting."""
+    import tempfile
+    if not isinstance(app_id, int) or app_id <= 0:
+        raise ValueError("App ID must be a positive integer")
+    location = SECRET_DIR.parent.parent / "app-identities.json"
+    if location.is_symlink():
+        raise RuntimeError("Refusing symlink identity metadata file")
+    existing = json.loads(location.read_text()) if location.exists() else {}
+    if not isinstance(existing, dict):
+        raise RuntimeError("Invalid local app identity registry")
+    if kind in existing and existing[kind] != app_id:
+        raise RuntimeError("Refusing to replace a different registered App ID")
+    existing[kind] = app_id
+    fd, temp_path = tempfile.mkstemp(prefix=".app-identities-", dir=str(location.parent))
+    try:
+        os.chmod(temp_path, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump(existing, out, sort_keys=True)
+            out.write("\n")
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temp_path, location)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
 def register():
     doctor()
     if KEY_PATH.exists():
@@ -130,6 +158,8 @@ def register():
     if app.get("slug") != APP or app.get("owner", {}).get("login") != ORG:
         raise RuntimeError("Unexpected GitHub App/organization in conversion response")
     safe_store_key(app["pem"])
+    # Only public numeric App IDs are saved; no token, PEM or client secret.
+    store_app_identity(APP_KIND, int(app["id"]))
     print("Registered:", APP, "(app id:", app["id"], ")")
     print("Private key safely stored on Mac with mode 0600.")
     try:

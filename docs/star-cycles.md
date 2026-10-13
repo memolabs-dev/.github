@@ -59,3 +59,10 @@ Les cycles ci-dessous représentent uniquement le travail réellement effectué.
 - **Tâche** : exécuter les tests statiques à chaque modification du dépôt de gouvernance.
 - **Actions** : workflow `automation-spec-ci.yml` ; cinq tests indépendants de tout secret.
 - **Résultat** : [run #38387677500](https://github.com/memolabs-dev/.github/actions/runs/38387677500) — **success**, sur commit `a8f338e`.
+
+## Cycle 8 — Client local de jetons éphémères, sans PAT
+
+- **Situation** : les workflows Actions savaient utiliser une GitHub App, mais les agents locaux dépendaient encore d'identités CLI utilisateur.
+- **Tâche** : fournir un mécanisme partagé pour une commande `gh`, avec jeton d'installation limité à un dépôt et aux permissions demandées.
+- **Actions** : ajout de `scripts/with-app-token.py` et des tests `tests/test_app_token.py` ; vérification des clés 0600, de l'App (ID/slug), de l'installation organisation et des permissions autorisées. Ajout du stockage de l'ID public des nouvelles Apps après leur inscription.
+- **Résultat** : **17 tests unitaires locaux réussis** ; authentification GitHub App réelle réussie pour `memolabs-dev/.github` et `memolabs-dev/cuesheet` avec `contents:read`. Aucun jeton imprimé ou enregistré par l'outil. **Les cas d'écriture, les identités Guardian/Release non créées et les autres dépôts restent non validés.**
