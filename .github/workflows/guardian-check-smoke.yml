@@ -1,0 +1,55 @@
+name: Guardian GitHub App — neutral Checks API smoke
+
+# Controlled/manual, no PR code execution, no merge, no deployment.
+# Requires separately registered memo-labs-guardian app.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guardian-check-smoke:
+    if: github.repository == 'memolabs-dev/.github' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify Guardian credentials are configured
+        shell: bash
+        env:
+          APP_CLIENT_ID: ${{ vars.MEMOLABS_GUARDIAN_CLIENT_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.MEMOLABS_GUARDIAN_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$APP_CLIENT_ID" || -z "$APP_PRIVATE_KEY" ]]; then
+            echo "::error::Guardian is not registered/configured; set MEMOLABS_GUARDIAN_CLIENT_ID and MEMOLABS_GUARDIAN_PRIVATE_KEY."
+            exit 1
+          fi
+
+      - name: Generate narrowly scoped Guardian installation token
+        id: guardian
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.MEMOLABS_GUARDIAN_CLIENT_ID }}
+          private-key: ${{ secrets.MEMOLABS_GUARDIAN_PRIVATE_KEY }}
+          owner: memolabs-dev
+          repositories: .github
+          permission-contents: read
+          permission-checks: write
+
+      - name: Publish neutral bootstrap check on this exact commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.guardian.outputs.token }}
+        run: |
+          set -euo pipefail
+          # A neutral result confirms auth and API use ONLY; it never certifies code.
+          check_url="$(gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" \
+            -f name='memo-guardian/bootstrap' \
+            -f head_sha="$GITHUB_SHA" \
+            -f status='completed' \
+            -f conclusion='neutral' \
+            -f 'output[title]=Guardian bootstrap verified' \
+            -f 'output[summary]=Only the GitHub App installation and Checks API were verified. No code, acceptance test, or independent evidence was reviewed.' \
+            --jq '.html_url')"
+          echo "Guardian neutral bootstrap check created: $check_url"
