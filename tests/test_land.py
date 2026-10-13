@@ -127,12 +127,20 @@ class LandingDecisionTests(TestCase):
 
 
 class LandingCommandTests(TestCase):
-    def fake_gh(self, calls, merge_fails=False, retarget_fails=False):
+    def fake_gh(self, calls, merge_fails=False, retarget_fails=False, close_fails=False):
         def gh(args, as_json=True):
             calls.append(args)
             if args[:2] == ["pr", "merge"]:
                 if merge_fails:
                     raise RuntimeError("gh pr merge failed (1)")
+                return ""
+            if args[:2] == ["pr", "view"]:
+                return {"closingIssuesReferences": [
+                    {"number": 14, "repository": {"name": "memo-bridge", "owner": {"login": "memolabs-dev"}}},
+                    {"number": 3, "repository": {"name": "other", "owner": {"login": "memolabs-dev"}}}]}
+            if args[:2] == ["issue", "close"]:
+                if close_fails:
+                    raise RuntimeError("gh issue close failed (1)")
                 return ""
             if args[:2] == ["pr", "edit"]:
                 if retarget_fails:
@@ -194,3 +202,16 @@ class LandingCommandTests(TestCase):
         self.assertFalse(any(c[:3] == ["api", "-X", "DELETE"] for c in calls))
         self.assertIn(["workflow", "run", "ci.yml", "--repo", REPO, "--ref", "main"], calls,
                       "a retarget failure does not skip post-merge workflows")
+
+    def test_linked_issues_in_the_same_repository_are_closed(self):
+        calls = []
+        with patch.object(land, "gh", self.fake_gh(calls)):
+            self.assertEqual(land.main(["--repo", REPO, "--sha", SHA]), 0)
+        closes = [c for c in calls if c[:2] == ["issue", "close"]]
+        self.assertEqual([c[2] for c in closes], ["14"], "issues of other repositories are left alone")
+
+    def test_missing_issue_permission_does_not_fail_the_landing(self):
+        calls = []
+        with patch.object(land, "gh", self.fake_gh(calls, close_fails=True)):
+            self.assertEqual(land.main(["--repo", REPO, "--sha", SHA, "--dispatch", "ci.yml"]), 0)
+        self.assertIn(["workflow", "run", "ci.yml", "--repo", REPO, "--ref", "main"], calls)
