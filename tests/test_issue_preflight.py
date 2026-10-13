@@ -111,3 +111,14 @@ class PreflightTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HolderPreflightTests(unittest.TestCase):
+    def test_holder_may_carry_agent_working_but_not_other_blockers(self):
+        labels = ["agent:ready", "priority:p1", "agent:working"]
+        result = preflight.assess(REPO, NUMBER, runner=fake_calls(issue=issue_info(labels=labels)), holding=True)
+        self.assertEqual(result["priority"], "priority:p1")
+        with self.assertRaises(preflight.PreflightDenied):
+            preflight.assess(REPO, NUMBER, runner=fake_calls(issue=issue_info(labels=labels)))
+        with self.assertRaises(preflight.PreflightDenied):
+            preflight.assess(REPO, NUMBER, runner=fake_calls(issue=issue_info(labels=labels + ["needs:human"])), holding=True)

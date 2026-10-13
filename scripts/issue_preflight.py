@@ -63,7 +63,9 @@ def get_json(path, runner=subprocess.run):
     return payload
 
 
-def assess(repo, number, runner=subprocess.run):
+def assess(repo, number, runner=subprocess.run, holding=False):
+    """Eligibility of an Issue. holding=True is the check made by the current lease holder:
+    the agent:working label it is expected to set no longer blocks it."""
     repo = checked_repo(repo)
     number = checked_number(number)
     metadata = get_json("repos/" + repo, runner)
@@ -86,7 +88,8 @@ def assess(repo, number, runner=subprocess.run):
         raise PreflightDenied("Invalid issue label data")
     if "agent:ready" not in label_names:
         raise PreflightDenied("Issue is not explicitly agent:ready")
-    blocked = sorted(label_names.intersection(BLOCKED_LABELS))
+    blockers = BLOCKED_LABELS - {"agent:working"} if holding else BLOCKED_LABELS
+    blocked = sorted(label_names.intersection(blockers))
     if blocked:
         raise PreflightDenied("Issue has blocking labels: " + ", ".join(blocked))
     selected_priorities = sorted(label_names.intersection(PRIORITIES))

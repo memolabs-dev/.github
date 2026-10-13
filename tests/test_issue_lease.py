@@ -98,3 +98,16 @@ class TestStatus(unittest.TestCase):
         self.assertTrue(self.lease.status(REPO,44)["expired"])
         self.lease.claim(REPO,44,"pilot-two")
         self.assertEqual(self.lease.status(REPO,44)["worker"],"pilot-two")
+
+class TestHolderChecks(unittest.TestCase):
+    def test_comments_and_labels_do_not_break_a_lease_but_a_body_edit_does(self):
+        issue={"updated_at":"2026-10-13T12:00:00Z","body":"f"*64}
+        def eligible(repo,n):
+            if repo!=REPO or int(n)!=44:raise m.Denied("Not eligible")
+            return {"issue_updated_at":issue["updated_at"],"issue_body_sha256":issue["body"]}
+        store=MemoryGit();lease=m.Lease(api=store,eligible=eligible,clock=lambda:NOW)
+        a=lease.claim(REPO,44,"pilot-one")
+        issue["updated_at"]="2026-10-13T12:05:00Z"  # a comment or a label
+        b=lease.heartbeat(REPO,44,"pilot-one",a["claim_id"],a["fence_sha"])
+        issue["body"]="0"*64                         # the task itself changed
+        with self.assertRaises(m.Denied):lease.verify(REPO,44,"pilot-one",b["claim_id"],b["fence_sha"])
