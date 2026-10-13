@@ -14,7 +14,8 @@ import subprocess
 import sys
 import time
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.parse import urlsplit
 
 ORG = "memolabs-dev"
 ROOT = Path(__file__).resolve().parent.parent
@@ -93,6 +94,15 @@ def signed_jwt(app_id, private_key):
     return signing_input.decode() + "." + encode(signature)
 
 
+class GitHubOnlyRedirect(HTTPRedirectHandler):
+    """Reject redirects that could send bearer credentials to another host."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        destination = urlsplit(newurl)
+        if destination.scheme != "https" or destination.hostname != "api.github.com":
+            raise RuntimeError("Cross-host GitHub API redirect rejected")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def github_request(method, endpoint, jwt_or_token, data=None):
     if not endpoint.startswith("/") or "://" in endpoint:
         raise ValueError("Only relative GitHub API paths are permitted")
@@ -110,7 +120,7 @@ def github_request(method, endpoint, jwt_or_token, data=None):
         method=method, data=payload
     )
     try:
-        with urlopen(req, timeout=22) as response:
+        with build_opener(GitHubOnlyRedirect()).open(req, timeout=22) as response:
             return json.load(response)
     except (HTTPError, URLError) as exc:
         # Never forward API bodies or request headers which can contain credentials.
@@ -148,6 +158,55 @@ def mint_token(kind, repo, permissions):
     return token
 
 
+def validate_command(command, repo):
+    """Prevent routing the ephemeral token outside its authorized GitHub repo."""
+    expected = f"{ORG}/{repo}"
+    if len(command) < 3 or command[0] != "gh":
+        raise ValueError("An explicit gh api, gh pr or gh issue operation is required")
+    if command[1] not in ("api", "pr", "issue"):
+        raise ValueError("Only gh api, gh pr or gh issue are supported")
+    for item in command[2:]:
+        if item in ("--hostname", "-H", "--header", "--web", "--editor"):
+            raise ValueError("Unsupported command flag when using an App token")
+        if (item.startswith("--hostname=") or item.startswith("--header=")
+                or item.startswith("-H") and len(item) > 2):
+            raise ValueError("Host or authorization header overrides are disallowed")
+    if command[1] == "api":
+        endpoint = command[2].lstrip("/")
+        base = "repos/" + expected
+        if not (endpoint == base or endpoint.startswith(base + "/")):
+            raise ValueError("GitHub API endpoint must be inside the selected repository")
+        segments = endpoint.split("/")
+        if any(segment in ("..", ".") for segment in segments) or "?" in endpoint:
+            raise ValueError("Relative API paths and query strings are not permitted")
+        return
+    # gh pr / gh issue must always receive an explicit matching -R/--repo,
+    # even when the working tree belongs to a different repository.
+    provided = []
+    for i, item in enumerate(command[2:], start=2):
+        if item in ("-R", "--repo"):
+            if i + 1 >= len(command):
+                raise ValueError("Repository selector has no value")
+            provided.append(command[i + 1])
+        elif item.startswith(("--repo=", "-R=")):
+            provided.append(item.split("=", 1)[1])
+    if not provided or any(value != expected for value in provided):
+        raise ValueError("gh pr/issue command needs matching -R/--repo")
+
+
+def restricted_env(token):
+    env = os.environ.copy()
+    for key in ("GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN",
+                "GH_CONFIG_DIR", "GH_REPO", "GH_HOST", "GH_DEBUG", "GH_PAGER"):
+        env.pop(key, None)
+    env["GH_HOST"] = "github.com"
+    env["GH_TOKEN"] = token
+    env["GITHUB_TOKEN"] = token
+    env["GH_PROMPT_DISABLED"] = "1"
+    env["GH_NO_UPDATE_NOTIFIER"] = "1"
+    return env
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--app", choices=("automation", "guardian", "release"), default="automation")
@@ -162,17 +221,16 @@ def main():
     command = args.command
     if command and command[0] == "--":
         command = command[1:]
-    if (len(command) < 2 or command[0] != "gh"
-            or command[1] not in ("api", "pr", "issue")):
-        parser.error("Only explicit gh api, gh pr or gh issue commands are supported")
+    try:
+        validate_command(command, args.repo)
+    except ValueError as exc:
+        parser.error(str(exc))
     print(f"App={args.app}, repository={ORG}/{args.repo}, scope={permissions}", file=sys.stderr)
     if not args.execute:
         print("DRY RUN: no token minted; add --execute to run", file=sys.stderr)
         return 0
     token = mint_token(args.app, args.repo, permissions)
-    env = os.environ.copy()
-    env["GH_TOKEN"] = token
-    env["GITHUB_TOKEN"] = token
+    env = restricted_env(token)
     # No shell, no token on command line, no token in inherited git config.
     finished = subprocess.run(command, env=env, timeout=300)
     return finished.returncode

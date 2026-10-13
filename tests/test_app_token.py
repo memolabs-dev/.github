@@ -116,3 +116,57 @@ class ScopedAppTokenTests(TestCase):
             with patch.object(module, "KEY_DIR", root):
                 with self.assertRaises(ValueError):
                     module.key_for("automation")
+
+    def test_cli_operation_must_target_selected_repo(self):
+        valid = [
+            ["gh", "api", "repos/memolabs-dev/cuesheet", "--jq", ".full_name"],
+            ["gh", "api", "/repos/memolabs-dev/cuesheet/pulls", "-X", "GET"],
+            ["gh", "pr", "list", "-R", "memolabs-dev/cuesheet"],
+            ["gh", "issue", "list", "--repo=memolabs-dev/cuesheet"],
+        ]
+        for command in valid:
+            with self.subTest(command=command):
+                module.validate_command(command, "cuesheet")
+
+    def test_cli_rejects_other_hosts_or_repository_targets(self):
+        blocked = [
+            ["gh", "api", "repos/memolabs-dev/drop"],
+            ["gh", "api", "graphql"],
+            ["gh", "api", "https://example.invalid/collect"],
+            ["gh", "api", "repos/memolabs-dev/cuesheet/../../other"],
+            ["gh", "api", "repos/memolabs-dev/cuesheet", "--hostname=example.invalid"],
+            ["gh", "api", "repos/memolabs-dev/cuesheet", "-H", "Authorization: overridden"],
+            ["gh", "pr", "list", "-R", "memolabs-dev/drop"],
+            ["gh", "issue", "list"],
+            ["gh", "issue", "list", "-R", "memolabs-dev/cuesheet", "--web"],
+            ["gh", "auth", "status"],
+        ]
+        for command in blocked:
+            with self.subTest(command=command), self.assertRaises(ValueError):
+                module.validate_command(command, "cuesheet")
+
+    def test_cli_process_environment_replaces_inherited_github_settings(self):
+        import os
+        with patch.dict(os.environ, {
+            "GH_HOST": "example.invalid",
+            "GH_REPO": "untrusted/elsewhere",
+            "GH_CONFIG_DIR": "/tmp/untrusted",
+            "GH_ENTERPRISE_TOKEN": "old-credential",
+        }):
+            env = module.restricted_env("synthetic-test-token")
+        self.assertEqual(env["GH_HOST"], "github.com")
+        self.assertEqual(env["GH_TOKEN"], "synthetic-test-token")
+        self.assertEqual(env["GITHUB_TOKEN"], "synthetic-test-token")
+        self.assertEqual(env["GH_PROMPT_DISABLED"], "1")
+        for key in ("GH_REPO", "GH_CONFIG_DIR", "GH_ENTERPRISE_TOKEN"):
+            self.assertNotIn(key, env)
+
+    def test_external_redirect_with_authorization_is_rejected(self):
+        request = module.Request("https://api.github.com/app", headers={
+            "Authorization": "Bearer synthetic-test-token"
+        })
+        for url in ("https://example.invalid/collect", "http://api.github.com/"):
+            with self.subTest(url=url), self.assertRaises(RuntimeError):
+                module.GitHubOnlyRedirect().redirect_request(
+                    request, None, 302, "Moved", {}, url
+                )
