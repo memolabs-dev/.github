@@ -42,6 +42,31 @@ conclusion, l'origine de l'artefact et la politique utilisée avant toute
 publication de check. Elle ne doit pas transformer ce reçu A2 auto-déclaré
 en A3 ou en jugement de qualité fonctionnelle.
 
+## Validation externe de la provenance CI (lecture seule)
+
+Le script [`scripts/verify-uni-ci-provenance.py`](../scripts/verify-uni-ci-provenance.py)
+lit les métadonnées GitHub du run, télécharge son artefact et contrôle la
+correspondance **exacte** du dépôt, de `main`, du workflow, du run, du SHA,
+de la décision et du checksum. Il recalcule également les empreintes du
+contrat UNI et du registre à partir des fichiers **du même commit GitHub**.
+
+```bash
+python3 scripts/verify-uni-ci-provenance.py --run-id 38426497159
+```
+
+Premier essai réel (13 octobre 2026) : `ci_provenance_verified=true`, run
+[`38426497159`](https://github.com/memolabs-dev/.github/actions/runs/38426497159),
+SHA `5f26bdd8692c74ad160684c22db1950cc90afab1`, artefact GitHub
+`11829300518`. Le verdict maintient `guardian_independent_verification=false`
+et `quality_certified=false`.
+
+Ce contrôle fournit **une preuve de provenance de CI**, pas une signature
+cryptographique d'un évaluateur indépendant. Il n'évalue pas l'adéquation
+fonctionnelle des changements et n'accorde aucun droit de fusion. Pour aller
+plus loin, Guardian devra être installé avec une identité distincte, exécuter
+des vérifications UNI/Aftershock indépendantes avec critères préétablis,
+et publier uniquement les conclusions effectivement justifiées.
+
 ## Prochaines étapes
 
 1. Tester `uni lint`, `uni verify`, `uni report` sur un commit propre, puis contrôler les champs d'identité, de révision et d'invalidation des preuves.
