@@ -21,11 +21,12 @@ import webbrowser
 
 ORG = "memolabs-dev"
 APP = "memo-labs-guardian"
+APP_KIND = "guardian"
 REPO = "memolabs-dev/.github"
 ROOT = Path(__file__).resolve().parent.parent
-MANIFEST_PATH = ROOT / "github-apps" / "memo-labs-guardian.manifest.json"
+MANIFEST_PATH = ROOT / "github-apps" / f"{APP}.manifest.json"
 SECRET_DIR = Path.home() / ".config" / "memolabs" / "secrets" / "github-app"
-KEY_PATH = SECRET_DIR / "memo-labs-guardian.private-key.pem"
+KEY_PATH = SECRET_DIR / f"{APP}.private-key.pem"
 
 def run_gh(*args, input_text=None):
     result = subprocess.run(["gh", *args], input=input_text, capture_output=True,
@@ -37,12 +38,16 @@ def run_gh(*args, input_text=None):
 
 def doctor():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    expected = {"contents":"read", "pull_requests":"read", "actions":"read", "checks":"write"}
+    expected = ({"contents":"read", "pull_requests":"read", "actions":"read", "checks":"write"}
+                if APP_KIND == "guardian" else
+                {"contents":"write", "deployments":"write", "actions":"read"})
     if manifest.get("default_permissions") != expected or manifest.get("default_events") != []:
-        raise RuntimeError("Unexpected Guardian manifest permission or event scope")
+        raise RuntimeError("Unexpected manifest permission or event scope")
     if manifest.get("name") != APP or manifest.get("public") is not False:
-        raise RuntimeError("Unexpected Guardian manifest identity/public scope")
-    print("Guardian manifest: valid, least-privilege, inactive webhooks.")
+        raise RuntimeError("Unexpected manifest identity/public scope")
+    if manifest.get("hook_attributes", {}).get("active") is not False:
+        raise RuntimeError("Webhooks must be inactive")
+    print(APP, "manifest validated.")
     print("GitHub CLI session: ", run_gh("api","user","--jq",".login"))
     print("Key exists:", KEY_PATH.exists())
     print("Registration needs a GitHub web authorization step.")
@@ -64,7 +69,7 @@ def safe_store_key(pem):
 def register():
     doctor()
     if KEY_PATH.exists():
-        raise RuntimeError("Guardian key already exists. Refusing duplicate registration.")
+        raise RuntimeError(f"{APP} key already exists. Refusing duplicate registration.")
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     state = secrets.token_urlsafe(28)
     server = HTTPServer(("127.0.0.1", 0), BaseHTTPRequestHandler)
@@ -128,34 +133,40 @@ def register():
     print("Registered:", APP, "(app id:", app["id"], ")")
     print("Private key safely stored on Mac with mode 0600.")
     try:
-        run_gh("variable","set","MEMOLABS_GUARDIAN_CLIENT_ID","--repo",REPO,"--body",app["client_id"])
-        run_gh("secret","set","MEMOLABS_GUARDIAN_PRIVATE_KEY","--repo",REPO,input_text=app["pem"])
+        run_gh("variable","set",f"MEMOLABS_{APP_KIND.upper()}_CLIENT_ID","--repo",REPO,"--body",app["client_id"])
+        run_gh("secret","set",f"MEMOLABS_{APP_KIND.upper()}_PRIVATE_KEY","--repo",REPO,input_text=app["pem"])
         print("GitHub Actions variable and encrypted secret configured.")
     except Exception:
         print("GitHub Actions credentials not yet configured (CLI authorization failure).")
         print("PEM remains only in local secret store; please check gh authorization.")
     print("GitHub must authorize the installation on the selected .github repository.")
     webbrowser.open(f"https://github.com/apps/{APP}/installations/new")
-    print("After installation, run: python3 scripts/register-guardian.py --verify")
+    print(f"After installation, run: python3 scripts/register-guardian.py --app {APP_KIND} --verify")
 
 def verify():
     doctor()
     installed = json.loads(run_gh("api",f"/orgs/{ORG}/installations"))
     matched = [x for x in installed.get("installations", []) if x.get("app_slug") == APP]
     if not matched:
-        raise RuntimeError("Guardian is not yet installed on memolabs-dev.")
+        raise RuntimeError(f"{APP} is not yet installed on memolabs-dev.")
     print("Guardian installation detected:", matched[0]["id"])
-    run_gh("workflow","run","guardian-check-smoke.yml","-R",REPO,"--ref","main")
-    print("Guardian neutral check smoke triggered; review Actions for success.")
-    print("This is NOT a code-quality or UNI/Aftershock acceptance check.")
+    workflow = "guardian-check-smoke.yml" if APP_KIND == "guardian" else "release-app-auth-smoke.yml"
+    run_gh("workflow","run",workflow,"-R",REPO,"--ref","main")
+    print(APP, "verification workflow triggered; review Actions for success.")
+    print("This is NOT a code-quality, release or production acceptance check.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--app", choices=("guardian", "release"), default="guardian")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--doctor",action="store_true")
     group.add_argument("--register",action="store_true")
     group.add_argument("--verify",action="store_true")
     args = parser.parse_args()
+    APP_KIND = args.app
+    APP = f"memo-labs-{APP_KIND}"
+    MANIFEST_PATH = ROOT / "github-apps" / f"{APP}.manifest.json"
+    KEY_PATH = SECRET_DIR / f"{APP}.private-key.pem"
     try:
         if args.doctor: doctor()
         elif args.register: register()

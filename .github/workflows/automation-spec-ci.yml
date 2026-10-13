@@ -1,0 +1,30 @@
+name: Validate Memo Labs automation specifications
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - github-apps/**
+      - scripts/**
+      - tests/**
+      - .github/workflows/**
+  pull_request:
+    paths:
+      - github-apps/**
+      - scripts/**
+      - tests/**
+      - .github/workflows/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline specification tests
+        shell: bash
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v

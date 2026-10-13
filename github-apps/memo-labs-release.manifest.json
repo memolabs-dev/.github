@@ -1,0 +1,17 @@
+{
+  "name": "memo-labs-release",
+  "url": "https://github.com/memolabs-dev",
+  "description": "Controlled releases and deployment provenance for Memo Labs. Requires human approval.",
+  "public": false,
+  "hook_attributes": {
+    "url": "https://github.com/memolabs-dev",
+    "active": false
+  },
+  "request_oauth_on_install": false,
+  "default_events": [],
+  "default_permissions": {
+    "contents": "write",
+    "deployments": "write",
+    "actions": "read"
+  }
+}

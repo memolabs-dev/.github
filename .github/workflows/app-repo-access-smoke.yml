@@ -1,0 +1,63 @@
+name: Verify Automation GitHub App access to selected repository
+
+# Explicit/manual read-only probe. No checkout, source execution, write, or deployment.
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Repository to verify after the organization owner adds it to the installation
+        required: true
+        type: choice
+        options:
+          - .github
+          - cuesheet
+          - uni-protocol
+          - problem-intelligence-engine
+          - drop
+          - lab-hub
+          - kollio-v3
+          - emargo
+          - lab-console
+
+permissions:
+  contents: read
+
+jobs:
+  verify-repository:
+    if: github.repository == 'memolabs-dev/.github' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Restrict to explicitly recognized repositories
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+        run: |
+          set -euo pipefail
+          case "$TARGET_REPOSITORY" in
+            .github|cuesheet|uni-protocol|problem-intelligence-engine|drop|lab-hub|kollio-v3|emargo|lab-console) ;;
+            *) echo "::error::Repository not in the approved inventory"; exit 1 ;;
+          esac
+
+      - name: Create read-only, repository-scoped token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.MEMOLABS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MEMOLABS_APP_PRIVATE_KEY }}
+          owner: memolabs-dev
+          repositories: ${{ inputs.repository }}
+          permission-contents: read
+
+      - name: Verify repository is readable by this installation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+        run: |
+          set -euo pipefail
+          expected="memolabs-dev/$TARGET_REPOSITORY"
+          gh api /installation/repositories --jq '.repositories[].full_name' |
+            grep -Fx -- "$expected" >/dev/null
+          gh api "repos/$expected" --jq '.full_name' | grep -Fx -- "$expected" >/dev/null
+          echo "Read-only installation access verified for $expected"

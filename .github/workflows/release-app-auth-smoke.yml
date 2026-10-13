@@ -1,0 +1,47 @@
+name: Verify Memo Labs Release App installation (read-only)
+
+# Future identity validation for Drop only. NEVER publishes a release or deploys.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-auth:
+    if: github.repository == 'memolabs-dev/.github' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check release app configuration
+        shell: bash
+        env:
+          CLIENT_ID: ${{ vars.MEMOLABS_RELEASE_CLIENT_ID }}
+          PRIVATE_KEY: ${{ secrets.MEMOLABS_RELEASE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "$CLIENT_ID" && -n "$PRIVATE_KEY" ]] || {
+            echo "::error::Release App must be registered and configured first"
+            exit 1
+          }
+
+      - name: Obtain repository-scoped read-only token
+        id: release
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.MEMOLABS_RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.MEMOLABS_RELEASE_PRIVATE_KEY }}
+          owner: memolabs-dev
+          repositories: drop
+          permission-contents: read
+
+      - name: Read only current repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.release.outputs.token }}
+        run: |
+          set -euo pipefail
+          gh api /installation/repositories --jq '.repositories[].full_name' |
+            grep -Fx -- 'memolabs-dev/drop' >/dev/null
+          echo "Release App installation verified in read-only mode."
+          echo "No production release or deployment permissions were exercised."
