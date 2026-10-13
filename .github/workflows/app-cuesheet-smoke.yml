@@ -1,0 +1,55 @@
+name: Verify GitHub App access to CUESHEET
+
+# Run manually from the org automation repo; no deployment or auto-merge.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cuesheet-app-proof:
+    if: github.repository == 'memolabs-dev/.github' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Mint scoped installation token for CUESHEET
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.MEMOLABS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MEMOLABS_APP_PRIVATE_KEY }}
+          owner: memolabs-dev
+          repositories: cuesheet
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Verify the app can create a draft CUESHEET PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TARGET_REPO: memolabs-dev/cuesheet
+        run: |
+          set -euo pipefail
+          branch="verification/app-cuesheet-${GITHUB_RUN_ID}"
+          doc_path="docs/automation/app-cuesheet-proof-${GITHUB_RUN_ID}.md"
+          head_sha="$(gh api "repos/${TARGET_REPO}/git/ref/heads/main" --jq '.object.sha')"
+
+          gh api -X POST "repos/${TARGET_REPO}/git/refs" \
+            -f ref="refs/heads/${branch}" -f sha="$head_sha" >/dev/null
+
+          doc="# GitHub App CUESHEET authorization proof
+
+          Source: memolabs-dev/.github Actions run ${GITHUB_RUN_ID}.
+          Author: memo-labs-automation[bot].
+          This draft only verifies GitHub App permissions. It does not change executable code or deploy anything."
+          content="$(printf '%s\n' "$doc" | base64 -w0)"
+          gh api -X PUT "repos/${TARGET_REPO}/contents/${doc_path}" \
+            -f message="test: prove installation token scope for CUESHEET" \
+            -f content="$content" -f branch="$branch" >/dev/null
+
+          gh api -X POST "repos/${TARGET_REPO}/pulls" \
+            -f title="test: verify Memo Labs GitHub App on CUESHEET" \
+            -f head="$branch" -f base=main -F draft=true \
+            -f body="Draft-only authorization proof. Created by the GitHub App from memolabs-dev/.github Actions run ${GITHUB_RUN_ID}. No merge requested." \
+            --jq '.html_url'
