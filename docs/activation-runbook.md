@@ -40,6 +40,24 @@ python3 scripts/register-guardian.py --app release --verify
 
 Ce test ne crée **aucune release** et ne déclenche **aucun déploiement**. Avant d'autoriser une publication, imposer revue humaine, vérification de signature/artefacts, protections des environnements et plan de rollback.
 
+## Étape B.5 — Client local de jetons éphémères (pilote P0.2)
+
+Le programme `scripts/with-app-token.py` remplace la dépendance à un PAT pour une **commande CLI ponctuelle**. Il vérifie la clé locale (propriétaire seul, sans lien symbolique), l'App et son installation dans `memolabs-dev`, puis demande un token pour **un seul dépôt** et des permissions restreintes. Il n'affiche ni le JWT ni le jeton d'installation.
+
+```bash
+# Mode simulation : ne lit aucune clé et ne contacte pas l'API
+python3 scripts/with-app-token.py --app automation --repo cuesheet \
+  --permission contents=read -- gh api repos/memolabs-dev/cuesheet --jq .full_name
+
+# Exécution explicite après revue des arguments (jeton temporaire)
+python3 scripts/with-app-token.py --app automation --repo cuesheet \
+  --permission contents=read --execute -- gh api repos/memolabs-dev/cuesheet --jq .full_name
+```
+
+La première exécution réelle sur `memolabs-dev/.github` en `contents:read` est réussie le 13 octobre 2026 ; elle a retourné seulement le nom du dépôt. Le client ne conserve pas le jeton et ne lance pas de shell intermédiaire. **Ne pas lui fournir une commande qui imprime volontairement ses variables d'environnement ou ses jetons.** Son usage avec des droits d'écriture et la migration d'autres agents restent soumis à une revue spécifique.
+
+Pour Guardian et Release, le programme de création enregistre après consentement l'**identifiant public** de l'App sous `~/.config/memolabs/app-identities.json`, sans clé ni token ; ceci permet leur utilisation ultérieure avec `--app guardian` ou `--app release`.
+
 ## Étape C — Relier Automation aux dépôts (P1)
 
 Aujourd'hui : `memo-labs-automation` est installée sur `.github` et `cuesheet` ; CUESHEET a été validé et son auto-merge accepte l'App ainsi que l'ancien bot.
