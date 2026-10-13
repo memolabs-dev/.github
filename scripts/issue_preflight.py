@@ -21,6 +21,7 @@ PUBLIC_ALLOWLIST = frozenset({
     "memolabs-dev/problem-intelligence-engine",
     "memolabs-dev/drop",
     "memolabs-dev/lab-hub",
+    "memolabs-dev/memo-bridge",
 })
 BLOCKED_LABELS = frozenset({
     "status:blocked", "needs:human", "type:epic", "agent:working",
