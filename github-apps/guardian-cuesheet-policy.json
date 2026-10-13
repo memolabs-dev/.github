@@ -1,0 +1,8 @@
+{
+  "contract": "memo-guardian/ci-provenance",
+  "version": "0.1.0",
+  "repository": "memolabs-dev/cuesheet",
+  "trusted_check_publisher": "github-actions",
+  "required_checks": ["Core and integration tests"],
+  "notes": "Bootstrap evidence only. This gate does not independently assess code semantics, security, or acceptance criteria."
+}
