@@ -17,7 +17,7 @@ POLICY = {"repository": REPO, "required_checks": []}
 def pr(**overrides):
     data = {
         "number": 7, "state": "open", "draft": False, "changed_files": 2,
-        "head": {"sha": SHA, "repo": {"full_name": REPO}},
+        "head": {"sha": SHA, "ref": "feat/x", "repo": {"full_name": REPO}},
         "base": {"ref": "main", "repo": {"default_branch": "main"}},
         "user": {"login": "memo-labs-automation[bot]"}, "labels": [],
     }
@@ -127,16 +127,22 @@ class LandingDecisionTests(TestCase):
 
 
 class LandingCommandTests(TestCase):
-    def fake_gh(self, calls, merge_fails=False):
+    def fake_gh(self, calls, merge_fails=False, retarget_fails=False):
         def gh(args, as_json=True):
             calls.append(args)
             if args[:2] == ["pr", "merge"]:
                 if merge_fails:
                     raise RuntimeError("gh pr merge failed (1)")
                 return ""
-            if args[:2] == ["workflow", "run"]:
+            if args[:2] == ["pr", "edit"]:
+                if retarget_fails:
+                    raise RuntimeError("gh pr edit failed (1)")
+                return ""
+            if args[:2] in (["workflow", "run"], ["api", "-X"]):
                 return ""
             endpoint = args[1]
+            if "pulls?state=open&base=feat/x" in endpoint:
+                return [{"number": 9}]
             if endpoint.endswith("/pulls"):
                 return [{"number": 7, "state": "open"}, {"number": 8, "state": "closed"}]
             if endpoint.endswith("/pulls/7"):
@@ -156,7 +162,10 @@ class LandingCommandTests(TestCase):
             code = land.main(["--repo", REPO, "--sha", SHA, "--dispatch", "ci.yml"])
         self.assertEqual(code, 0)
         merge = next(c for c in calls if c[:2] == ["pr", "merge"])
-        self.assertEqual(merge, ["pr", "merge", "7", "--repo", REPO, "--squash", "--match-head-commit", SHA, "--delete-branch"])
+        self.assertEqual(merge, ["pr", "merge", "7", "--repo", REPO, "--squash", "--match-head-commit", SHA])
+        retarget = calls.index(["pr", "edit", "9", "--repo", REPO, "--base", "main"])
+        delete = calls.index(["api", "-X", "DELETE", f"repos/{REPO}/git/refs/heads/feat/x"])
+        self.assertLess(retarget, delete, "stacked PRs move before the branch disappears")
         self.assertIn(["workflow", "run", "ci.yml", "--repo", REPO, "--ref", "main"], calls)
         self.assertFalse(any("8" in c for c in calls if c[:2] == ["pr", "merge"]), "closed PRs are ignored")
 
@@ -177,3 +186,11 @@ class LandingCommandTests(TestCase):
         with patch.object(land, "gh", self.fake_gh(calls)):
             self.assertEqual(land.main(["--repo", REPO, "--sha", "main"]), 1)
         self.assertEqual(calls, [])
+
+    def test_branch_is_kept_when_a_stacked_pr_cannot_be_retargeted(self):
+        calls = []
+        with patch.object(land, "gh", self.fake_gh(calls, retarget_fails=True)):
+            self.assertEqual(land.main(["--repo", REPO, "--sha", SHA, "--dispatch", "ci.yml"]), 1)
+        self.assertFalse(any(c[:3] == ["api", "-X", "DELETE"] for c in calls))
+        self.assertIn(["workflow", "run", "ci.yml", "--repo", REPO, "--ref", "main"], calls,
+                      "a retarget failure does not skip post-merge workflows")
