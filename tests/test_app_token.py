@@ -49,7 +49,8 @@ class ScopedAppTokenTests(TestCase):
         http.side_effect = [
             {"id": 5298579, "slug": "memo-labs-automation"},
             [{"id": 987, "app_id": 5298579, "account": {"login": "memolabs-dev"}}],
-            {"token": "test-token-only"},
+            {"token": "test-token-only", "expires_at": "2099-01-01T00:00:00Z",
+             "permissions": {"contents": "read"}},
         ]
         self.assertEqual(
             module.mint_token("automation", "cuesheet", {"contents": "read"}),
@@ -170,3 +171,26 @@ class ScopedAppTokenTests(TestCase):
                 module.GitHubOnlyRedirect().redirect_request(
                     request, None, 302, "Moved", {}, url
                 )
+
+    def test_rejects_expired_or_unverified_scoped_tokens(self):
+        good_app = {"id": 5298579, "slug": "memo-labs-automation"}
+        install = [{"id": 987, "app_id": 5298579,
+                    "account": {"login": "memolabs-dev"}}]
+        samples = [
+            {"token": "synthetic-token", "expires_at": "2020-01-01T00:00:00Z",
+             "permissions": {"contents": "read"}},
+            {"token": "synthetic-token", "permissions": {"contents": "read"}},
+            {"token": "synthetic-token", "expires_at": "2099-01-01T00:00:00Z",
+             "permissions": {"contents": "write"}},
+            {"token": "synthetic-token", "expires_at": "2099-01-01T00:00:00Z"},
+        ]
+        for response in samples:
+            with self.subTest(response=response):
+                with patch.object(module, "github_request", side_effect=[
+                    good_app, install, response
+                ]):
+                    with patch.object(module, "key_for"), \
+                         patch.object(module, "signed_jwt", return_value="signed.jwt"), \
+                         patch.object(module, "get_app_id", return_value=5298579):
+                        with self.assertRaises(RuntimeError):
+                            module.mint_token("automation", "cuesheet", {"contents": "read"})

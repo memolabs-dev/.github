@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.parse import urlsplit
@@ -155,6 +156,18 @@ def mint_token(kind, repo, permissions):
     token = info.get("token")
     if not isinstance(token, str) or not token:
         raise RuntimeError("Installation did not return a token")
+    try:
+        expiry = datetime.fromisoformat(info["expires_at"].replace("Z", "+00:00"))
+        remaining = (expiry - datetime.now(timezone.utc)).total_seconds()
+    except (KeyError, AttributeError, TypeError, ValueError) as exc:
+        raise RuntimeError("Installation token expiry is missing or invalid") from None
+    if expiry.tzinfo is None or remaining < 300:
+        raise RuntimeError("Installation token expires too soon to use safely")
+    returned_permissions = info.get("permissions")
+    if not isinstance(returned_permissions, dict):
+        raise RuntimeError("GitHub did not confirm token permission scope")
+    if any(returned_permissions.get(name) != level for name, level in permissions.items()):
+        raise RuntimeError("GitHub installation token permission mismatch")
     return token
 
 
