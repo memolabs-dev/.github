@@ -62,6 +62,8 @@ class Lease:
     def __init__(self,api=None,eligible=None,clock=None,make_id=None):
         self.api=api or Github()
         self.eligible=eligible or preflight.assess
+        # The holder re-checks the Issue with its own agent:working label allowed.
+        self.held_eligible=eligible or (lambda repo,number:preflight.assess(repo,number,holding=True))
         self.clock=clock or (lambda:datetime.now(timezone.utc))
         self.make_id=make_id or (lambda:uuid.uuid4().hex)
     def current(self,repo,number):
@@ -107,8 +109,8 @@ class Lease:
         child=self.append(key,old,r)
         try:
             after=self.eligible(repo,number)
-            if (before["issue_updated_at"],before["issue_body_sha256"])!=(
-                    after["issue_updated_at"],after["issue_body_sha256"]):
+            # Only the task itself counts as a change: comments and labels move updated_at.
+            if before["issue_body_sha256"]!=after["issue_body_sha256"]:
                 raise Denied("Issue changed after preflight")
         except Exception:
             try:self.release(repo,number,worker,nonce,child,"cancelled")
@@ -135,9 +137,8 @@ class Lease:
         return key,sha,r
     def verify(self,repo,number,worker,claim_id,fence):
         key,sha,r=self.owned(repo,number,worker,claim_id,fence)
-        item=self.eligible(repo,number)
-        if (r["issue_updated_at"],r["issue_body_sha256"])!=(
-                item["issue_updated_at"],item["issue_body_sha256"]):
+        item=self.held_eligible(repo,number)
+        if r["issue_body_sha256"]!=item["issue_body_sha256"]:
             raise Denied("Issue changed since claim")
         return self.receipt(key,sha,r)
     def heartbeat(self,repo,number,worker,claim_id,fence,ttl=300):
