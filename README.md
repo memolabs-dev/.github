@@ -11,6 +11,9 @@ Gouvernance GitHub de [memolabs-dev](https://github.com/memolabs-dev).
 
 ## Références
 
+- [Engineering System v1 — Issues, STAR, agent queue, sécurité](docs/github-engineering-system.md)
+
+
 - [Architecture cible, répartition des identités et décisions](docs/automation-architecture.md)
 - [Guardian : création, permissions minimales et vérification](docs/guardian-app.md)
 - [Ordre de migration et critères de sortie](docs/migration-matrix.md)
