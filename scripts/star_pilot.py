@@ -96,7 +96,6 @@ class Pilot:
         expected = "https://github.com/" + REPO + "/issues/" + str(number)
         if issue.get("html_url") != expected or issue.get("state") != "open" or "pull_request" in issue:
             raise PilotDenied("Not the expected open fixture Issue")
-        # Only the standalone opt-in marker is parsed; raw Issue text is never executed.
         body = issue.get("body")
         if not isinstance(body, str) or MARKER not in body.splitlines():
             raise PilotDenied("Explicit synthetic fixture marker missing")
@@ -104,52 +103,66 @@ class Pilot:
         filename = FILE_PREFIX + "issue-" + str(number) + ".json"
         if self.api.exists(branch):
             raise PilotDenied("Existing pilot branch; manual reconciliation required")
+
+        # Critical distinction: preview uses only GETs. It NEVER claims a
+        # Git-ref lease, which would itself be a remote write.
+        self.lease.eligible(REPO, number)
+        base_sha = self.api.main()
+        source = self.api.source(base_sha)
+        if not SHA.fullmatch(base_sha) or source.get("type") != "file" or not SHA.fullmatch(source.get("sha", "")):
+            raise PilotDenied("Pinned source not verified")
+
+        def materialize(claim):
+            record = {
+                "kind": "MEMO_STAR_PILOT_FIXTURE_V1", "issue": expected,
+                "source_path": SOURCE, "source_blob_sha": source["sha"],
+                "base_sha": base_sha,
+                "lease_ref": claim["reference"] if claim else None,
+                "epoch": claim["epoch"] if claim else None,
+                "claim_id": claim["claim_id"] if claim else None,
+                "fence_sha": claim["fence_sha"] if claim else None,
+                "test_result": "PASS: disposable JSON round-trip",
+                "task_code_executed": False, "product_modified": False,
+                "deployment_performed": False,
+            }
+            content, digest = stage(record)
+            summary = {
+                "issue": expected, "branch": branch, "file": filename,
+                "receipt_sha256": digest, "base_sha": base_sha,
+                "source_sha": source["sha"],
+                "epoch": claim["epoch"] if claim else None,
+                "published": False, "draft_pr": None,
+                "task_code_executed": False, "lease_acquired": claim is not None,
+            }
+            return content, summary
+
+        if not publish:
+            _, summary = materialize(None)
+            return summary
+
         claim = self.lease.claim(REPO, number, worker, 300)
         outcome = "blocked"
         try:
             self.guard(number, worker, claim)
-            main_sha = self.api.main()
-            source = self.api.source(main_sha)
-            if not SHA.fullmatch(main_sha) or source.get("type") != "file" or not SHA.fullmatch(source.get("sha", "")):
-                raise PilotDenied("Pinned source not verified")
-            receipt = {
-                "kind": "MEMO_STAR_PILOT_FIXTURE_V1", "issue": expected,
-                "source_path": SOURCE, "source_blob_sha": source["sha"],
-                "base_sha": main_sha, "lease_ref": claim["reference"],
-                "epoch": claim["epoch"], "claim_id": claim["claim_id"],
-                "fence_sha": claim["fence_sha"],
-                "test_result": "PASS: disposable JSON round-trip",
-                "task_code_executed": False, "product_modified": False,
-                "deployment_performed": False
-            }
-            content, digest = stage(receipt)
-            result = {
-                "issue": expected, "branch": branch, "file": filename,
-                "receipt_sha256": digest, "base_sha": main_sha,
-                "source_sha": source["sha"], "epoch": claim["epoch"],
-                "published": False, "draft_pr": None, "task_code_executed": False
-            }
+            content, result = materialize(claim)
             self.guard(number, worker, claim)
-            if publish:
-                # Cooperative guards: external operations are not atomic with the lease.
-                self.api.branch(branch, main_sha)
-                self.guard(number, worker, claim)
-                self.api.file(filename, branch, content)
-                self.guard(number, worker, claim)
-                pr = self.api.draft(branch, number, main_sha, claim["fence_sha"])
-                url = pr.get("html_url", "")
-                if pr.get("draft") is not True or not isinstance(url, str) or not url.startswith(
-                        "https://github.com/" + REPO + "/pull/"):
-                    raise PilotDenied("Draft PR publication uncertain")
-                result.update({"published": True, "draft_pr": url})
+            self.api.branch(branch, base_sha)
+            self.guard(number, worker, claim)
+            self.api.file(filename, branch, content)
+            self.guard(number, worker, claim)
+            pr = self.api.draft(branch, number, base_sha, claim["fence_sha"])
+            url = pr.get("html_url", "")
+            if pr.get("draft") is not True or not isinstance(url, str) or not url.startswith(
+                    "https://github.com/" + REPO + "/pull/"):
+                raise PilotDenied("Draft PR publication uncertain")
             outcome = "completed"
-            return result
+            return {**result, "published": True, "draft_pr": url}
         finally:
-            # If the release cannot be confirmed, do not report success.
             try:
                 self.lease.release(REPO, number, worker, claim["claim_id"], claim["fence_sha"], outcome)
             except (Denied, preflight.PreflightDenied) as exc:
                 raise PilotDenied("Lease release cannot be confirmed") from exc
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
