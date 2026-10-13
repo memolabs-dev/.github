@@ -1,6 +1,6 @@
 # Migration du compte technique vers une GitHub App
 
-> État : préparation (2026-10-13). Aucun secret, aucune permission existante et aucun déploiement n'ont été modifiés.
+> État : installation pilote réussie (2026-10-13). Application enregistrée, clé en coffre local et secret GitHub Actions, tests d'identité et d'écriture verts ; ancien bot maintenu pendant la migration. Aucun déploiement modifié.
 
 ## Audit vérifié
 
@@ -15,7 +15,7 @@
 - Le workflow `lab-hub/.github/workflows/build.yml` construit et publie une image GHCR. Le déploiement est géré séparément par le VPS.
 - La liste d'installations de l'organisation consultée via `gh api /orgs/memolabs-dev/installations` était vide au moment de l'audit.
 
-Un compte utilisateur ne peut pas devenir une GitHub App en conservant son type et son identité. Les nouvelles actions seront signées sous `memo-labs-automation[bot]` si le nom d'app `memo-labs-automation` est disponible.
+Un compte utilisateur ne peut pas devenir une GitHub App en conservant son type et son identité. L'application créée utilise réellement l'identité `memo-labs-automation[bot]`.
 
 ## Enregistrement (opération de propriétaire, non automatisée)
 
@@ -51,6 +51,16 @@ gh secret set MEMOLABS_APP_PRIVATE_KEY --repo memolabs-dev/.github < /path/to/pr
 Ne pas coller de clé privée ni utiliser un argument en ligne de commande contenant sa valeur.
 
 Déclencher manuellement **Verify Memo Labs GitHub App** depuis Actions. Il doit produire un jeton d'installation de courte durée et prouver uniquement l'accès en lecture à ce dépôt. Le test est volontairement incapable de déployer, pousser ou fusionner une PR.
+
+## Preuves d'activation (13 octobre 2026)
+
+- App `memo-labs-automation`, installation `170927025`, sélection explicite des dépôts `.github` et `cuesheet`.
+- Lecture installation/jeton temporaire : [`Actions #38378857946`](https://github.com/memolabs-dev/.github/actions/runs/38378857946) — **success**.
+- Première PR émise par la GitHub App : [`memolabs-dev/.github#1`](https://github.com/memolabs-dev/.github/pull/1), **draft**.
+- Accès réel à CUESHEET avec jeton limité : [`Actions #38380373269`](https://github.com/memolabs-dev/.github/actions/runs/38380373269) — **success**.
+- PR créée par la GitHub App dans CUESHEET : [`memolabs-dev/cuesheet#57`](https://github.com/memolabs-dev/cuesheet/pull/57), **draft**, tests CI obligatoires réussis ; fusion volontairement désactivée.
+- Transition de l'allowlist auto-merge : [`memolabs-dev/cuesheet#58`](https://github.com/memolabs-dev/cuesheet/pull/58) ; sa fusion est soumise à la CI GitHub. La nouvelle identité est ajoutée **sans retirer** `drop-agent-bot`.
+- Emplacement de la clé privée sur le Mac : `~/.config/memolabs/secrets/github-app/memo-labs-automation.private-key.pem` (0600). Aucun secret dans le dépôt.
 
 ## Basculement progressif (après smoke vert)
 
