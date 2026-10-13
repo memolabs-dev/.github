@@ -1,0 +1,6 @@
+{
+  "name": "Memo Labs landing contract",
+  "description": "Merge a pull request automatically once CI and required receipts are green on its exact commit. Workflows, deployment and infrastructure paths always need a human merge.",
+  "iconName": "octicon git-merge",
+  "categories": ["Automation"]
+}

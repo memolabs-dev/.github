@@ -1,0 +1,76 @@
+# Memo Labs landing contract (reusable). One merge gate for every repository.
+# Called by each repository's own `land.yml` after its CI completes on a pull request.
+# Decides from GitHub API metadata only: it never checks out or runs pull request code.
+# Contract and rules: docs/landing-contract.md
+name: Land verified pull request
+
+on:
+  workflow_call:
+    inputs:
+      method:
+        description: squash or merge
+        type: string
+        default: squash
+      required_checks:
+        description: Newline-separated check names that must be green on the exact SHA (for example a UNI receipt)
+        type: string
+        default: ''
+      extra_protected:
+        description: Newline-separated extra path regexes that always need a human merge
+        type: string
+        default: ''
+      dispatch:
+        description: Newline-separated workflow files to run on the base branch after landing
+        type: string
+        default: ''
+      contract_ref:
+        description: Ref of memolabs-dev/.github that provides scripts/land.py
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  land:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      checks: read
+      statuses: read
+    concurrency:
+      group: land-${{ github.repository }}-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    steps:
+      - name: Fetch the landing contract (governance repository, never PR code)
+        uses: actions/checkout@v5
+        with:
+          repository: memolabs-dev/.github
+          ref: ${{ inputs.contract_ref }}
+          sparse-checkout: scripts/land.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+          path: contract
+      - name: Decide and land
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          METHOD: ${{ inputs.method }}
+          REQUIRED: ${{ inputs.required_checks }}
+          EXTRA: ${{ inputs.extra_protected }}
+          DISPATCH: ${{ inputs.dispatch }}
+        run: |
+          set -euo pipefail
+          args=(--repo "$GITHUB_REPOSITORY" --sha "$TESTED_SHA" --method "$METHOD")
+          while IFS= read -r line; do [ -n "$line" ] && args+=(--required-check "$line"); done <<< "$REQUIRED"
+          while IFS= read -r line; do [ -n "$line" ] && args+=(--extra-protected "$line"); done <<< "$EXTRA"
+          while IFS= read -r line; do [ -n "$line" ] && args+=(--dispatch "$line"); done <<< "$DISPATCH"
+          python3 contract/scripts/land.py "${args[@]}"
