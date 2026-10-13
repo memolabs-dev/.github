@@ -23,3 +23,6 @@ The adapter checks the lease and Issue state before creating the branch, writing
 This is COOPERATIVE fencing only. The verification and later GitHub mutation are two independent API requests, not one atomic transaction. A stale worker might act in that gap. The worker ID is manually selected, not cryptographically bound to the GitHub App. No multi-host, timed expiration, crash replay or malicious executor integration has been proven; Issue #39 therefore remains OPEN.
 
 Future worker must authenticate identities, enforce protected-write fencing at the writer, verify source spec/dependencies/commit SHA, use isolated real code worktrees, run actual repository test suites and stage a PR requiring human review. This fixture deliberately does none of that.
+
+## Audit correction — 13 October 2026
+An initial live test on fixture #41 produced PR #42. The original preview acquired and released a Git-ref lease, so it was NOT strictly read-only; that claim has been corrected here. The current preview calls eligibility and metadata GETs only and never claims/releases; explicit publication alone uses a Git-ref lease. Fixture #41/#42 remain valid proof of the publication flow, but not evidence of the corrected preview behavior.
