@@ -13,7 +13,8 @@ A pull request lands only when all of these hold on the exact tested SHA:
   and every required check (for example a UNI or Guardian receipt) is present and green.
 
 Agents never merge. This gate does, with --match-head-commit so a newer untested push
-can never be merged in place of the verified one.
+can never be merged in place of the verified one. Pull requests stacked on the
+landed branch are moved to its base before the branch is deleted.
 """
 import argparse
 import json
@@ -119,6 +120,21 @@ def gather(repo, sha, number):
     return pr, files, checks.get("check_runs", []), checks.get("total_count", 0), status
 
 
+def retire_branch(repo, head_ref, base_ref):
+    """Move pull requests stacked on the landed branch to its base, then delete the branch.
+
+    Deleting a branch through the API closes every open pull request based on it, so the
+    stacked ones are retargeted first. If any retarget fails, the branch is kept.
+    """
+    stacked = gh(["api", f"repos/{repo}/pulls?state=open&base={head_ref}&per_page=100"])
+    moved = []
+    for child in stacked:
+        gh(["pr", "edit", str(child["number"]), "--repo", repo, "--base", base_ref], as_json=False)
+        moved.append(child["number"])
+    gh(["api", "-X", "DELETE", f"repos/{repo}/git/refs/heads/{head_ref}"], as_json=False)
+    return moved
+
+
 def report(verdict):
     line = json.dumps(verdict, sort_keys=True)
     print(line)
@@ -156,15 +172,26 @@ def main(argv=None):
         if verdict["land"] and not args.dry_run:
             try:
                 gh(["pr", "merge", str(number), "--repo", args.repo, f"--{args.method}",
-                    "--match-head-commit", args.sha, "--delete-branch"], as_json=False)
+                    "--match-head-commit", args.sha], as_json=False)
                 verdict["merged"] = True
-                # Merges made with GITHUB_TOKEN do not trigger push workflows: run them explicitly.
-                for workflow in args.dispatch:
-                    gh(["workflow", "run", workflow, "--repo", args.repo, "--ref", pr["base"]["ref"]], as_json=False)
-                verdict["dispatched"] = args.dispatch
             except RuntimeError as error:
                 verdict.update(merged=False, reason="merge_refused", detail=str(error))
                 exit_code = 1
+            if verdict.get("merged"):
+                # Each follow-up is reported on its own: a failure here never hides the merge.
+                try:
+                    verdict["retargeted"] = retire_branch(args.repo, pr["head"]["ref"], pr["base"]["ref"])
+                except RuntimeError as error:
+                    verdict["branch_kept"] = str(error)
+                    exit_code = 1
+                # Merges made with GITHUB_TOKEN do not trigger push workflows: run them explicitly.
+                try:
+                    for workflow in args.dispatch:
+                        gh(["workflow", "run", workflow, "--repo", args.repo, "--ref", pr["base"]["ref"]], as_json=False)
+                    verdict["dispatched"] = args.dispatch
+                except RuntimeError as error:
+                    verdict["dispatch_failed"] = str(error)
+                    exit_code = 1
         report(verdict)
     return exit_code
 
