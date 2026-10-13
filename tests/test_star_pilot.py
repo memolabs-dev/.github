@@ -44,6 +44,8 @@ class FakeLease:
         self.denied_at=None
         self.releases=[]
         self.claims=0
+    def eligible(self,*args):
+        return {"decision": "DRY_RUN_ELIGIBLE_NOT_CLAIMED"}
     def claim(self,*args):
         self.claims+=1
         return {"claim_id":"c"*32,"fence_sha":"d"*40,"epoch":1,
@@ -65,10 +67,13 @@ class Tests(unittest.TestCase):
         self.assertFalse(result["published"])
         self.assertNotIn("branch",self.gh.events)
         self.assertNotIn("draft",self.gh.events)
-        self.assertEqual(self.lease.releases,["completed"])
+        self.assertEqual(self.lease.releases,[])
+        self.assertEqual(self.lease.claims,0)
+        self.assertFalse(result["lease_acquired"])
     def test_fixture_creates_one_draft_with_guards(self):
         result=self.pilot.run(123,"pilot-worker",True)
         self.assertTrue(result["published"])
+        self.assertTrue(result["lease_acquired"])
         self.assertEqual(self.gh.events.count("draft"),1)
         self.assertEqual(self.lease.calls,4)
         self.assertEqual(self.lease.releases,["completed"])
