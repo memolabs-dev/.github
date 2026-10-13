@@ -20,6 +20,28 @@ Le contrat prouve **que la suite de tests enregistrée a réussi sur une révisi
 
 **Ne pas activer sur `pull_request` pour l'instant** : charger des commandes de vérification depuis une PR non approuvée briserait notre frontière de confiance. La CI existante continue de tester les PR avec ses propres restrictions, et UNI est réservé à `main` pour ce pilote.
 
+## Reçu CI structuré (v1, SHA-bound, non indépendant)
+
+Après `uni verify` réussi sur `main`, le workflow appelle
+[`scripts/export-uni-governance-receipt.py`](../scripts/export-uni-governance-receipt.py).
+Le programme **refuse** une décision si le SHA UNI diffère de `GITHUB_SHA`,
+si la revendication `governance-tests` n'est pas `Valid`, si la décision
+n'est pas `Accepted`, ou si l'assurance/identité ne correspond pas au pilote
+`A2 / SELF-DECLARED / independent_actor=false`.
+
+Le JSON conservé contient seulement : dépôt, commit complet, numéro de run,
+SHA-256 du contrat et du registre, décision et identité déclarées, plus une
+empreinte de cohérence. Il **n'inclut pas** les logs du test, le contenu du
+workspace, les secrets ou les données brutes de preuve UNI. L'artefact Actions
+`uni-governance-receipt-<commit_SHA>` est conservé **7 jours**. Il est lié au
+run GitHub Actions et au commit ; **l'empreinte JSON n'est pas une signature**.
+
+Ce reçu sert à préparer la vérification par Memo Guardian. La future application
+doit vérifier indépendamment via l'API GitHub le dépôt, le run, son SHA, sa
+conclusion, l'origine de l'artefact et la politique utilisée avant toute
+publication de check. Elle ne doit pas transformer ce reçu A2 auto-déclaré
+en A3 ou en jugement de qualité fonctionnelle.
+
 ## Prochaines étapes
 
 1. Tester `uni lint`, `uni verify`, `uni report` sur un commit propre, puis contrôler les champs d'identité, de révision et d'invalidation des preuves.

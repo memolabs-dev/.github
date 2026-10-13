@@ -34,3 +34,24 @@ jobs:
           version: v0.9.4
           contract: uni/intents/governance.uni
           report-to-summary: 'true'
+
+      - name: Export minimal SHA-bound UNI receipt (self-declared assurance)
+        shell: bash
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python3 scripts/export-uni-governance-receipt.py \
+            --decision .uni/decisions/last.json \
+            --output .uni/artifacts/assurance-receipt.json
+
+      - name: Upload governance receipt for later independent verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: uni-governance-receipt-${{ github.sha }}
+          path: .uni/artifacts/assurance-receipt.json
+          if-no-files-found: error
+          retention-days: 7
