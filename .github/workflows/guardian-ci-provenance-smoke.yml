@@ -1,0 +1,49 @@
+name: Guardian CI evidence preflight (informational)
+
+# This is NOT the Guardian App and does not publish a GitHub Check.
+# Explicitly manually invoked from trusted main. No PR code execution.
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: CUESHEET pull request number to inspect
+        required: true
+        type: number
+        default: 57
+
+permissions:
+  contents: read
+
+jobs:
+  provenance-only:
+    if: github.repository == 'memolabs-dev/.github' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Read trusted policy and verifier from main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check exact CUESHEET SHA against GitHub Actions evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Expected a positive numeric pull request number"
+            exit 1
+          }
+          python3 scripts/guardian-ci-preflight.py --pr "$PR_NUMBER"
+
+      - name: Explain informational scope
+        shell: bash
+        run: |
+          {
+            echo '### Guardian CI provenance preflight'
+            echo 'This workflow checks only that GitHub reports a required CI result for an exact CUESHEET commit.'
+            echo 'It is **not** a semantic UNI/Aftershock verification, not a production check and not a merge approval.'
+            echo 'No GitHub App installation, branch, pull request or deployment is modified.'
+          } >> "$GITHUB_STEP_SUMMARY"
