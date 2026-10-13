@@ -14,7 +14,7 @@
 
 Le binaire UNI v0.9.4 a été testé sur macOS. Son `uni init` **n'accepte pas** `--profile python`, malgré la documentation plus récente de `main`; nous avons utilisé `uni init` puis remplacé le registre par une entrée Python approuvée et versionnée.
 
-Lors du premier essai local, `uni lint` était vert mais `uni verify` a retourné `EvidenceRequired` : la commande Python était passée (exit 0) mais le dépôt avait des fichiers non commités, et le reçu indiquait `workspace_dirty=true`. C'est un **refus de preuve légitime**. Il faut re-vérifier sur un commit propre (ou dans le workflow sur `main`) et enregistrer le verdict séparément.
+Les deux premiers essais locaux ont renvoyé `EvidenceRequired` malgré les tests Python verts. Le premier reçu portait `workspace_dirty=true`, ce qui invalide correctement la preuve. Le deuxième, après commit propre, indiquait `artifact_files={}` : les motifs `tests/*.py` et similaires n'étaient **pas reconnus** comme nous l'avions supposé. En UNI v0.9.4, `*` représente un segment entier et `**` plusieurs segments ; le registre emploie désormais `tests/**`, `scripts/**`, `github-apps/**` et `.github/workflows/**`. Cette distinction doit être vérifiée dans les artefacts effectivement liés à la preuve. Ne jamais traiter un code retour de tests 0 comme une acceptation UNI.
 
 Le contrat prouve **que la suite de tests enregistrée a réussi sur une révision identifiée**, pas que chaque intention produit est satisfaite. Une commande de tests approuvée n'est pas équivalente à un audit de code indépendant ou à un certificat cryptographique d'identité.
 

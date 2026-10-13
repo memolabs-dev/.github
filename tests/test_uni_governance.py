@@ -13,8 +13,8 @@ class UniGovernanceContractTests(unittest.TestCase):
             "python3 -m unittest discover -s tests -p 'test_*.py'", text
         )
         self.assertIn('expect = "OK"', text)
-        self.assertIn("tests/*.py", text)
-        self.assertIn("scripts/*.py", text)
+        self.assertIn("tests/**", text)
+        self.assertIn("scripts/**", text)
         self.assertIn("timeout = 180", text)
 
     def test_dsl_contract_has_a_required_claim(self):

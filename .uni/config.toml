@@ -2,5 +2,5 @@
 [verifiers."governance.tests"]
 run = "python3 -m unittest discover -s tests -p 'test_*.py'"
 expect = "OK"
-files = ["tests/*.py", "scripts/*.py", "github-apps/*.json", ".github/workflows/*.yml"]
+files = ["tests/**", "scripts/**", "github-apps/**", ".github/workflows/**"]
 timeout = 180
