@@ -63,7 +63,7 @@ Dans [GitHub → Installations de memolabs-dev](https://github.com/organizations
 ## Étape D — Fonctions du Lab sans nouvelle App
 
 - **Radar v0** : `python3 scripts/radar.py` ; lit le dernier workflow par dépôt. Les déploiements restent **unknown** sans preuve réelle.
-- **Steward** : backlog #19 ; futur entretien par PR de l'identité Automation, pas d'administration.
+- **Steward v0** : `python3 scripts/steward.py --days 14` ; ne fait que signaler les PR ouvertes et anciennes. Aucune clôture, fusion ni suppression. Le pilotage automatisé par PR reste au backlog #19.
 - **Scout** : backlog #20 ; rattacher PIE et ses sources au Lab, pas de nouvelle identité.
 - **Guardian v1** : backlog #8 et #9 ; brancher UNI/Aftershock après bootstrap seulement.
 

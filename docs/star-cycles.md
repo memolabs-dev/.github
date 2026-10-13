@@ -37,3 +37,25 @@ Les cycles ci-dessous représentent uniquement le travail réellement effectué.
 3. Exécuter les smokes en lecture seule et confronter leurs statuts au SHA.
 4. Migrer les agents et outils consommateurs des PAT *avant* la révocation.
 5. Lancer UNI/Aftershock sur un cas réel pour que Guardian puisse émettre des conclusions justifiées.
+
+
+## Cycle 5 — Vérification GitHub du pilote déjà installé
+
+- **Situation** : `.github` et CUESHEET disposent déjà de l'installation Automation.
+- **Tâche** : valider le nouveau workflow en lecture seule contre GitHub réel.
+- **Actions** : exécution du workflow `app-repo-access-smoke.yml` une fois sur `.github`, une fois sur `cuesheet`.
+- **Résultat** : [run .github #38387727480](https://github.com/memolabs-dev/.github/actions/runs/38387727480) — **success** ; [run CUESHEET #38387827602](https://github.com/memolabs-dev/.github/actions/runs/38387827602) — **success**. Aucun autre dépôt n'a été connecté.
+
+## Cycle 6 — Memo Steward, inspection non destructive
+
+- **Situation** : la maintenance des dépôts n'a pas de vue transversale simple des PR inactives.
+- **Tâche** : produire des candidates à la revue sans pouvoir clôturer ou fusionner une PR.
+- **Actions** : `scripts/steward.py --days 14` lit les dates de mise à jour des PR ouvertes sur les neuf dépôts.
+- **Résultat** : exécution réelle réussie ; **0 candidate** âgée d'au moins 14 jours au moment de l'exécution. Aucun changement de PR, branche ou étiquette. Les règles de maintenance et l'intégration UI restent dans #19.
+
+## Cycle 7 — CI des spécifications
+
+- **Situation** : les permissions proposées doivent rester séparées lors des futures révisions.
+- **Tâche** : exécuter les tests statiques à chaque modification du dépôt de gouvernance.
+- **Actions** : workflow `automation-spec-ci.yml` ; cinq tests indépendants de tout secret.
+- **Résultat** : [run #38387677500](https://github.com/memolabs-dev/.github/actions/runs/38387677500) — **success**, sur commit `a8f338e`.
