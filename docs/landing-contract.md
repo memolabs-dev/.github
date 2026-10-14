@@ -15,7 +15,7 @@ Contexte d'ensemble : la note Vault `1-Projects/memo-labs-os.md`.
 Une PR est fusionnée si toutes ces conditions sont vraies sur le SHA testé :
 
 1. elle est ouverte, n'est pas un brouillon, vient du même dépôt et cible la branche par défaut ;
-2. son auteur est une identité de confiance (`guillaume-flambard`, `memo-labs-automation[bot]`, `drop-agent-bot` pendant la transition) ;
+2. son auteur est une identité de confiance (`guillaume-flambard` ou `memo-labs-automation[bot]`). L'ancien compte `drop-agent-bot` en est retiré depuis le 14 octobre 2026 ([raison](github-app-migration.md#retrait-de-drop-agent-bot-14-octobre-2026)) ;
 3. elle ne porte pas le label `hold-merge` ;
 4. elle ne touche aucun chemin protégé : `.github/`, `Dockerfile*`, `docker/`, `deploy/`, `deployment/`, `scripts/deploy*`, `ansible/`, `stacks/`, `infra/`, plus les motifs propres au dépôt. Ces changements restent fusionnés par un humain ;
 5. tous les check runs et statuts de ce SHA sont terminés et verts (`success`, `neutral` ou `skipped`), et au moins un existe ;

@@ -54,6 +54,8 @@ Ce recensement n'est pas une certification de leur santé actuelle : vérifier c
 
 Avant révocation : inventorier les tâches cron, secrets, scripts, connexions CLI et dépôts concernés ; tester les consommateurs en jetons temporaires et garder une voie de rollback sûre.
 
+**14 octobre 2026 :** retiré des auteurs de confiance, compte bloqué par l'exigence de 2FA sécurisée de l'organisation. Voir [Retrait de `drop-agent-bot`](github-app-migration.md#retrait-de-drop-agent-bot-14-octobre-2026).
+
 ## Règle de contrôle des changements
 
 1. Agent de développement produit une PR avec SHA et sources.
