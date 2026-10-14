@@ -76,7 +76,7 @@ Dans [GitHub → Installations de memolabs-dev](https://github.com/organizations
 3. Lire le résultat des workflows dans GitHub Actions. Un échec signifie souvent que l'application n'est pas installée sur ce dépôt.
 4. Quand la lecture fonctionne, faire une PR **draft non critique** avec l'identité d'App, vérifier CI/ruleset/protection puis, seulement ensuite, modifier une éventuelle allowlist d'auteurs par PR.
 5. Pour les dépôts privés `kollio-v3`, `emargo`, `lab-console` : validation d'accès individuelle, **jamais automatique**.
-6. Ancienne identité `drop-agent-bot` : aucun PAT révoqué tant que tous les consommateurs Mac/VPS/IDE/CI n'ont pas été testés.
+6. Ancienne identité `drop-agent-bot` : aucun PAT révoqué tant que tous les consommateurs Mac/VPS/IDE/CI n'ont pas été testés. *Consommateurs vérifiés et compte retiré des auteurs de confiance le 2026-10-14 ; actions restantes : [Retrait](github-app-migration.md#retrait-de-drop-agent-bot-14-octobre-2026).*
 
 ## Étape D — Fonctions du Lab sans nouvelle App
 

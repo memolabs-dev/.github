@@ -7,7 +7,7 @@ Gouvernance GitHub de [memolabs-dev](https://github.com/memolabs-dev).
 - **memo-labs-automation[bot]** : application GitHub en place ; installation initiale sur `.github` et `cuesheet`, preuve d'écriture et CI vérifiées.
 - **memo-labs-guardian** : architecture et manifeste préparés, **application non encore enregistrée**. [Assistant CLI de création](scripts/register-guardian.py) utilisant le flux GitHub officiel avec consentement propriétaire, workflow de preuve préparé mais non exécuté.
 - **memo-labs-release** : hypothèse pour une phase ultérieure ; aucune application créée.
-- **drop-agent-bot** : compte utilisateur technique maintenu temporairement pour compatibilité, jetons non révoqués.
+- **drop-agent-bot** : compte utilisateur technique **retiré le 14 octobre 2026** des auteurs de confiance (contrat de fusion, auto-merge `cuesheet` et `uni-protocol`). Bloqué dans l'organisation par l'exigence de 2FA sécurisée ; retrait de l'organisation et révocation des jetons à faire par le propriétaire ([détail](docs/github-app-migration.md#retrait-de-drop-agent-bot-14-octobre-2026)).
 
 ## Références
 

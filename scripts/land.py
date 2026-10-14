@@ -24,7 +24,7 @@ import subprocess
 import sys
 
 CONTRACT = "memo-labs/landing@0.1.0"
-TRUSTED_AUTHORS = ("guillaume-flambard", "memo-labs-automation[bot]", "drop-agent-bot")
+TRUSTED_AUTHORS = ("guillaume-flambard", "memo-labs-automation[bot]")
 HOLD_LABEL = "hold-merge"
 PROTECTED_PATHS = (
     r"^\.github/",

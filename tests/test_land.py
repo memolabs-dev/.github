@@ -65,6 +65,16 @@ class LandingDecisionTests(TestCase):
             self.assertFalse(verdict["land"], reason)
             self.assertEqual(verdict["reason"], reason)
 
+    def test_trusted_authors_are_the_owner_and_the_app_only(self):
+        self.assertEqual(land.TRUSTED_AUTHORS, ("guillaume-flambard", "memo-labs-automation[bot]"))
+        for login in land.TRUSTED_AUTHORS:
+            self.assertTrue(decide(p=pr(user={"login": login}))["land"], login)
+
+    def test_retired_drop_agent_bot_is_untrusted(self):
+        verdict = decide(p=pr(user={"login": "drop-agent-bot"}))
+        self.assertFalse(verdict["land"])
+        self.assertEqual(verdict["reason"], "untrusted_author")
+
     def test_deleted_head_repository_is_external(self):
         self.assertEqual(decide(p=pr(head={"sha": SHA, "repo": None}))["reason"], "external_branch")
 
