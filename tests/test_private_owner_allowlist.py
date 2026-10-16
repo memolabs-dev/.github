@@ -16,7 +16,7 @@ class PrivateOwnerAllowlistTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
-        self.home = Path(self.folder.name)
+        self.home = Path(self.folder.name).resolve()
         self.path = self.home / ".local/share/memo-bridge/owner-policy/private-repos.json"
         self.path.parent.mkdir(parents=True)
         self.path.write_text(json.dumps({
