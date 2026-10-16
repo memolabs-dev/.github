@@ -5,6 +5,7 @@ This is not an autonomous executor and does not acquire a distributed lease.
 The GitHub Actions workflow serializes *its own* dry-run invocations only.
 """
 import argparse
+import private_owner_allowlist as owner_private
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -35,8 +36,11 @@ class PreflightDenied(Exception):
 
 
 def checked_repo(value):
-    if not isinstance(value, str) or value not in PUBLIC_ALLOWLIST:
-        raise PreflightDenied("Repository not in the explicit public pilot allowlist")
+    # Existing public pilot or an explicitly owner-enrolled private Mac runtime.
+    # A VPS, a discovery snapshot, or a caller-provided repo name never grants access.
+    if not isinstance(value, str) or (
+            value not in PUBLIC_ALLOWLIST and not owner_private.allowed(value)):
+        raise PreflightDenied("Repository not in an approved repository allowlist")
     return value
 
 
@@ -71,8 +75,12 @@ def assess(repo, number, runner=subprocess.run, holding=False):
     metadata = get_json("repos/" + repo, runner)
     if metadata.get("full_name") != repo:
         raise PreflightDenied("Repository identity mismatch")
-    if metadata.get("private") is not False or metadata.get("archived") is not False:
-        raise PreflightDenied("Repository must be confirmed public and active")
+    # Private repositories require the owner's Mac-only opt-in policy, and must
+    # be confirmed *private* via GitHub before any Issue is inspected/claimed.
+    private = repo not in PUBLIC_ALLOWLIST
+    if (private and not owner_private.allowed(repo)) or (
+            metadata.get("private") is not private or metadata.get("archived") is not False):
+        raise PreflightDenied("Repository privacy or enrollment mismatch")
 
     issue = get_json("repos/" + repo + "/issues/" + str(number), runner)
     if "pull_request" in issue or issue.get("number") != number:
