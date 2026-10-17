@@ -2,7 +2,7 @@
 
 **Owner: Memo Coordinator.** Memo Bridge serves this ledger to every AI client (`memolabs-dev/memo-bridge`, `docs/COORDINATOR.md`) and its CI runs the script from this repository's `main`. Changes must keep the CLI, the JSON receipts and the `LEASE_DENIED` messages backward compatible.
 
-**Scope:** public Issues from the preflight allowlist only, in `memolabs-dev/.github`. GitHub Projects remains separate.
+**Scope:** Issues of `memolabs-dev` repositories that GitHub confirms public and not archived (organization rule since 2026-10-17; private ones only with the owner's Mac-only enrollment). The ledger lives in `memolabs-dev/.github`. GitHub Projects remains separate.
 
 - Map each `owner/repo#issue` to an immutable-name branch `refs/heads/star-lease-v1/<sha256>` in the public governance repository. Private Issue metadata is **not allowed** here.
 - `claim`: validate Issue state/priority/`agent:ready` and absence of blocked/human/epic/working labels; create a no-file-change Git commit with opaque lease ID, worker ID, expiration and source digest. Create ref atomically. Concurrent ref creation is exclusive.

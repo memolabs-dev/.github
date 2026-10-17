@@ -92,6 +92,25 @@ class PreflightTests(unittest.TestCase):
                 with self.assertRaises(preflight.PreflightDenied):
                     preflight.assess(REPO, NUMBER, runner=fake_calls(issue=issue_info(**extra)))
 
+    def test_any_public_org_repo_is_in_scope(self):
+        # Owner decision of 2026-10-17: the organization is the boundary, no per-repo list.
+        repo = "memolabs-dev/stasis"
+        fn = Mock(side_effect=[
+            subprocess.CompletedProcess([], 0, json.dumps(repo_info(full_name=repo)), ""),
+            subprocess.CompletedProcess([], 0, json.dumps(issue_info(html_url=f"https://github.com/{repo}/issues/{NUMBER}")), ""),
+        ])
+        result = preflight.assess(repo, NUMBER, runner=fn)
+        self.assertEqual(result["decision"], "DRY_RUN_ELIGIBLE_NOT_CLAIMED")
+
+    def test_private_org_repo_needs_owner_enrollment(self):
+        repo = "memolabs-dev/emargo"
+        fn = Mock(side_effect=[
+            subprocess.CompletedProcess([], 0, json.dumps(repo_info(full_name=repo, private=True)), ""),
+        ])
+        with self.assertRaises(preflight.PreflightDenied):
+            preflight.assess(repo, NUMBER, runner=fn)
+        self.assertEqual(fn.call_count, 1, "the Issue is never read")
+
     def test_requires_verified_public_repo(self):
         for meta in [
             dict(repo_info(), private=True), dict(repo_info(), archived=True),
