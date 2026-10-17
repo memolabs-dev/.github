@@ -72,9 +72,11 @@ class TestLease(unittest.TestCase):
         y=self.store.create_commit(parent,m.MARKER+json.dumps({**record,"state":"released","outcome":"failed"}))
         self.store.advance(name,x)
         with self.assertRaises(m.Denied):self.store.advance(name,y)
-    def test_public_allowlist_enforced_even_with_custom_eligibility(self):
+    def test_org_scope_enforced_even_with_custom_eligibility(self):
+        # The repository name check runs before any eligibility function: a repository outside
+        # memolabs-dev is refused. Privacy (emargo) is checked against GitHub in assess().
         with self.assertRaises(m.preflight.PreflightDenied):
-            self.make().claim("memolabs-dev/emargo",44,"pilot-one")
+            self.make().claim("guillaume-flambard/lab-infra",44,"pilot-one")
         with self.assertRaises(m.Denied):self.make().claim(REPO,44,"x")
     def test_stale_fence_and_changed_issue(self):
         a=self.make().claim(REPO,44,"pilot-one")

@@ -13,17 +13,11 @@ import re
 import subprocess
 import sys
 
-# Explicitly public, active repositories for the first pilot. Any expansion
-# requires a reviewed policy update (especially for private repos).
-PUBLIC_ALLOWLIST = frozenset({
-    "memolabs-dev/.github",
-    "memolabs-dev/cuesheet",
-    "memolabs-dev/uni-protocol",
-    "memolabs-dev/problem-intelligence-engine",
-    "memolabs-dev/drop",
-    "memolabs-dev/lab-hub",
-    "memolabs-dev/memo-bridge",
-})
+# Scope (owner decision of 2026-10-17, memo-bridge owner-console spec T-A1): any repository of
+# the memolabs-dev organization that GitHub confirms public and not archived. The organization is
+# the trust boundary since the owner's personal repositories moved into it. Private repositories
+# still need the owner's Mac-only enrollment (private_owner_allowlist).
+ORG_REPO = re.compile(r"^memolabs-dev/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$")
 BLOCKED_LABELS = frozenset({
     "status:blocked", "needs:human", "type:epic", "agent:working",
 })
@@ -36,11 +30,11 @@ class PreflightDenied(Exception):
 
 
 def checked_repo(value):
-    # Existing public pilot or an explicitly owner-enrolled private Mac runtime.
-    # A VPS, a discovery snapshot, or a caller-provided repo name never grants access.
-    if not isinstance(value, str) or (
-            value not in PUBLIC_ALLOWLIST and not owner_private.allowed(value)):
-        raise PreflightDenied("Repository not in an approved repository allowlist")
+    # A memolabs-dev repository name; whether it is public is confirmed against GitHub in
+    # assess() before any Issue is read. A VPS, a discovery snapshot, or a caller-provided
+    # repo name never grants access to a private repository.
+    if not isinstance(value, str) or not ORG_REPO.fullmatch(value):
+        raise PreflightDenied("Repository is not in the memolabs-dev organization")
     return value
 
 
@@ -75,11 +69,11 @@ def assess(repo, number, runner=subprocess.run, holding=False):
     metadata = get_json("repos/" + repo, runner)
     if metadata.get("full_name") != repo:
         raise PreflightDenied("Repository identity mismatch")
-    # Private repositories require the owner's Mac-only opt-in policy, and must
-    # be confirmed *private* via GitHub before any Issue is inspected/claimed.
-    private = repo not in PUBLIC_ALLOWLIST
-    if (private and not owner_private.allowed(repo)) or (
-            metadata.get("private") is not private or metadata.get("archived") is not False):
+    # GitHub decides public or private. Public and not archived: allowed. Private: only with
+    # the owner's Mac-only opt-in policy. Anything else (unknown, archived) fails closed.
+    if metadata.get("archived") is not False or metadata.get("private") not in (True, False):
+        raise PreflightDenied("Repository privacy or enrollment mismatch")
+    if metadata.get("private") is True and not owner_private.allowed(repo):
         raise PreflightDenied("Repository privacy or enrollment mismatch")
 
     issue = get_json("repos/" + repo + "/issues/" + str(number), runner)
