@@ -92,6 +92,27 @@ class PreflightTests(unittest.TestCase):
                 with self.assertRaises(preflight.PreflightDenied):
                     preflight.assess(REPO, NUMBER, runner=fake_calls(issue=issue_info(**extra)))
 
+    def test_compatibility_literal_keeps_the_shape_memo_bridge_parses(self):
+        # The deployed Memo Bridge coordinator reads PUBLIC_ALLOWLIST as text, with this regex
+        # (server/coordinator/index.mjs parsePublicAllowlist). Missing or malformed, every claim
+        # fails with ledger_unavailable (incident of 2026-10-18).
+        import re
+        text = path.read_text()
+        block = re.search(r"^PUBLIC_ALLOWLIST\s*=\s*frozenset\(\{([^}]{0,8000})\}\)", text, re.M)
+        self.assertIsNotNone(block)
+        entries = [e.strip() for e in re.sub(r"#[^\n]*", "", block.group(1)).split(",") if e.strip()]
+        self.assertTrue(entries)
+        for entry in entries:
+            self.assertRegex(entry, r'^"[^"\\]{1,140}"$')
+            self.assertRegex(entry.strip('"'), preflight.ORG_REPO)
+        self.assertEqual(len(entries), len(preflight.PUBLIC_ALLOWLIST))
+
+    def test_refusal_message_maps_to_repo_not_allowed(self):
+        # memo-bridge issue-lease.mjs maps a ledger error containing "allowlist" to repo_not_allowed.
+        with self.assertRaises(preflight.PreflightDenied) as ctx:
+            preflight.checked_repo("guillaume-flambard/lab-infra")
+        self.assertIn("allowlist", str(ctx.exception))
+
     def test_any_public_org_repo_is_in_scope(self):
         # Owner decision of 2026-10-17: the organization is the boundary, no per-repo list.
         repo = "memolabs-dev/stasis"

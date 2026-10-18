@@ -18,6 +18,33 @@ import sys
 # the trust boundary since the owner's personal repositories moved into it. Private repositories
 # still need the owner's Mac-only enrollment (private_owner_allowlist).
 ORG_REPO = re.compile(r"^memolabs-dev/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$")
+
+# Compatibility literal, NOT used by this script. The deployed Memo Bridge coordinator reads this
+# exact `PUBLIC_ALLOWLIST = frozenset({...})` text from this file as its pre-filter
+# (memo-bridge server/coordinator/index.mjs parsePublicAllowlist); without it every claim fails
+# with ledger_unavailable (incident of 2026-10-18, memo-bridge owner-console spec). Keep it equal
+# to the public projects of lab-infra memo_runner_pilot_repos plus this repository, until Memo
+# Bridge understands ORG_REPO; then delete it. tests/test_issue_preflight.py checks its shape.
+PUBLIC_ALLOWLIST = frozenset({
+    "memolabs-dev/.github",
+    "memolabs-dev/memo-bridge",
+    "memolabs-dev/cuesheet",
+    "memolabs-dev/uni-protocol",
+    "memolabs-dev/problem-intelligence-engine",
+    "memolabs-dev/drop",
+    "memolabs-dev/lab-hub",
+    "memolabs-dev/agent-reality-bench",
+    "memolabs-dev/aidd-guard",
+    "memolabs-dev/intentlane",
+    "memolabs-dev/kollio-mac",
+    "memolabs-dev/life-os",
+    "memolabs-dev/memo-cc",
+    "memolabs-dev/navirox",
+    "memolabs-dev/stasis",
+    "memolabs-dev/trufflo",
+    "memolabs-dev/valve",
+    "memolabs-dev/world-kernel",
+})
 BLOCKED_LABELS = frozenset({
     "status:blocked", "needs:human", "type:epic", "agent:working",
 })
@@ -34,7 +61,7 @@ def checked_repo(value):
     # assess() before any Issue is read. A VPS, a discovery snapshot, or a caller-provided
     # repo name never grants access to a private repository.
     if not isinstance(value, str) or not ORG_REPO.fullmatch(value):
-        raise PreflightDenied("Repository is not in the memolabs-dev organization")
+        raise PreflightDenied("Repository not in the memolabs-dev organization allowlist")
     return value
 
 
