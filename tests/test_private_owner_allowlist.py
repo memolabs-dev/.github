@@ -69,5 +69,19 @@ class PrivateOwnerAllowlistTests(unittest.TestCase):
             self.path.chmod(0o600)
             self.assertFalse(self.allowed())
 
+    def test_home_comes_from_the_account_not_the_environment(self):
+        # The Memo Bridge ledger child runs with HOME set to a private gh configuration directory.
+        account = type("pw", (), {"pw_dir": str(self.home)})()
+        with patch.object(policy.pwd, "getpwuid", return_value=account) as lookup, \
+                patch.dict(os.environ, {"HOME": str(self.home / "gh-config")}):
+            self.assertTrue(policy.allowed(CDKF, environ=self.env, platform="darwin", uid=os.geteuid()))
+        lookup.assert_called_once_with(os.geteuid())
+        other = type("pw", (), {"pw_dir": str(self.home / "someone-else")})()
+        with patch.object(policy.pwd, "getpwuid", return_value=other):
+            self.assertFalse(policy.allowed(CDKF, environ=self.env, platform="darwin", uid=os.geteuid()))
+        with patch.object(policy.pwd, "getpwuid", side_effect=KeyError("no such uid")):
+            self.assertFalse(policy.allowed(CDKF, environ=self.env, platform="darwin", uid=os.geteuid()))
+
+
 if __name__ == "__main__":
     unittest.main()
