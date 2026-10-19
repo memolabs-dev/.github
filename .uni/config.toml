@@ -8,6 +8,7 @@ files = [
   ".github/workflows/app-repo-access-smoke.yml",
   ".github/workflows/app-write-smoke.yml",
   ".github/workflows/automation-spec-ci.yml",
+  ".github/workflows/portfolio-projects-sync.yml",
   ".github/workflows/guardian-check-smoke.yml",
   ".github/workflows/guardian-ci-provenance-smoke.yml",
   ".github/workflows/land.yml",
