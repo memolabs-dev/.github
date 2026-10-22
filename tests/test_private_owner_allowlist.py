@@ -157,6 +157,8 @@ class ExternalProjectsTests(unittest.TestCase):
             dict(good, schema=policy.SCHEMA),
             dict(good, extra=1),
             dict(good, projects=[dict(item, path="relative/path")]),
+            dict(good, projects=[dict(item, path=str(self.home / "x") + "/../example")]),
+            dict(good, projects=[dict(item, name=f"p{i}", repo=f"memolabs-dev/p{i}") for i in range(21)]),
             dict(good, projects=[dict(item, name="Bad Name")]),
             dict(good, projects=[dict(item, repo="someone-else/private-example")]),
             dict(good, projects=[dict(item, extra=1)]),

@@ -30,6 +30,7 @@ REPO = re.compile(r"^(?:memolabs-dev|guillaume-flambard)/[A-Za-z0-9][A-Za-z0-9._
 NAME = re.compile(r"^[a-z0-9][a-z0-9._-]{0,79}$")
 MAX_BYTES = 16 * 1024
 MAX_REPOS = 100
+MAX_EXTERNAL = 20  # memo-bridge server/projects/external-projects.mjs
 MODES = frozenset({"runtime", "stdio"})
 POLICY_DIR = (".local", "share", "memo-bridge", "owner-policy")
 
@@ -88,7 +89,8 @@ def _external_repos(obj, sub):
     if obj is None or set(obj) != {"schema", "owner_sub", "projects"}:
         return []
     projects = obj["projects"]
-    if obj["schema"] != EXTERNAL_SCHEMA or obj["owner_sub"] != sub or not isinstance(projects, list):
+    if (obj["schema"] != EXTERNAL_SCHEMA or obj["owner_sub"] != sub or not isinstance(projects, list) or
+            len(projects) > MAX_EXTERNAL):
         return []
     repos = []
     names = set()
@@ -96,7 +98,8 @@ def _external_repos(obj, sub):
         if (not isinstance(item, dict) or set(item) != {"name", "path", "repo"} or
                 not isinstance(item["name"], str) or not NAME.fullmatch(item["name"]) or
                 item["name"] in names or
-                not isinstance(item["path"], str) or not os.path.isabs(item["path"])):
+                not isinstance(item["path"], str) or not os.path.isabs(item["path"]) or
+                "\0" in item["path"] or os.path.normpath(item["path"]) != item["path"]):
             return []
         names.add(item["name"])
         repos.append(item["repo"])
