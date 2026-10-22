@@ -13,11 +13,12 @@ import re
 import subprocess
 import sys
 
-# Scope (owner decision of 2026-10-17, memo-bridge owner-console spec T-A1): any repository of
-# the memolabs-dev organization that GitHub confirms public and not archived. The organization is
-# the trust boundary since the owner's personal repositories moved into it. Private repositories
-# still need the owner's Mac-only enrollment (private_owner_allowlist).
-ORG_REPO = re.compile(r"^memolabs-dev/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$")
+# Scope (owner decisions of 2026-10-17 and 2026-10-22, memo-bridge owner-console spec T-A1 and
+# memo-bridge#257): any repository of the owner's namespaces, the memolabs-dev organization and
+# his own account guillaume-flambard, that GitHub confirms public and not archived. Private
+# repositories still need the owner's Mac-only enrollment (private_owner_allowlist).
+OWNER_NAMESPACES = ("memolabs-dev", "guillaume-flambard")
+ORG_REPO = re.compile(r"^(?:memolabs-dev|guillaume-flambard)/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$")
 
 # Compatibility literal, NOT used by this script. The deployed Memo Bridge coordinator reads this
 # exact `PUBLIC_ALLOWLIST = frozenset({...})` text from this file as its pre-filter
@@ -57,11 +58,12 @@ class PreflightDenied(Exception):
 
 
 def checked_repo(value):
-    # A memolabs-dev repository name; whether it is public is confirmed against GitHub in
-    # assess() before any Issue is read. A VPS, a discovery snapshot, or a caller-provided
-    # repo name never grants access to a private repository.
+    # A repository name in the owner's namespaces; whether it is public is confirmed against
+    # GitHub in assess() before any Issue is read. A VPS, a discovery snapshot, or a
+    # caller-provided repo name never grants access to a private repository.
+    # The message keeps "allowlist": memo-bridge maps it to repo_not_allowed.
     if not isinstance(value, str) or not ORG_REPO.fullmatch(value):
-        raise PreflightDenied("Repository not in the memolabs-dev organization allowlist")
+        raise PreflightDenied("Repository not in the owner namespaces allowlist")
     return value
 
 
@@ -143,6 +145,9 @@ def assess(repo, number, runner=subprocess.run, holding=False):
         "issue_body_sha256": hashlib.sha256(
             (issue.get("body") or "").encode("utf-8")
         ).hexdigest(),
+        # GitHub's answer above; the lease keeps a private repository's identity out of the
+        # public ledger (issue_lease.py).
+        "repository_private": metadata["private"],
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "runner": "manual_preflight_only",
         "execution_performed": False,

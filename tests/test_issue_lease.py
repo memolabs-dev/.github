@@ -74,9 +74,9 @@ class TestLease(unittest.TestCase):
         with self.assertRaises(m.Denied):self.store.advance(name,y)
     def test_org_scope_enforced_even_with_custom_eligibility(self):
         # The repository name check runs before any eligibility function: a repository outside
-        # memolabs-dev is refused. Privacy (emargo) is checked against GitHub in assess().
+        # the owner's namespaces is refused. Privacy is checked against GitHub in assess().
         with self.assertRaises(m.preflight.PreflightDenied):
-            self.make().claim("guillaume-flambard/lab-infra",44,"pilot-one")
+            self.make().claim("someone-else/lab-infra",44,"pilot-one")
         with self.assertRaises(m.Denied):self.make().claim(REPO,44,"x")
     def test_stale_fence_and_changed_issue(self):
         a=self.make().claim(REPO,44,"pilot-one")
@@ -113,3 +113,55 @@ class TestHolderChecks(unittest.TestCase):
         b=lease.heartbeat(REPO,44,"pilot-one",a["claim_id"],a["fence_sha"])
         issue["body"]="0"*64                         # the task itself changed
         with self.assertRaises(m.Denied):lease.verify(REPO,44,"pilot-one",b["claim_id"],b["fence_sha"])
+
+PRIVATE="guillaume-flambard/private-example"
+def private_eligible(repo,n):
+    if repo!=PRIVATE or int(n)!=7:raise m.Denied("Not eligible")
+    return {"issue_updated_at":"2026-10-22T12:00:00Z","issue_body_sha256":"f"*64,"repository_private":True}
+
+class TestPrivateRecords(unittest.TestCase):
+    """memo-bridge#257: the public ledger never stores a private repository's name or Issue."""
+    def setUp(self):
+        self.store=MemoryGit();self.clock=[NOW]
+        self.lease=m.Lease(api=self.store,eligible=private_eligible,clock=lambda:self.clock[0])
+    def messages(self):
+        return [c["message"] for c in self.store.commits.values() if c["message"].startswith(m.MARKER)]
+    def test_private_lifecycle_never_writes_the_identity(self):
+        a=self.lease.claim(PRIVATE,7,"pilot-one")
+        self.assertEqual((a["repo"],a["issue"]),(PRIVATE,7))  # the local receipt still names it
+        b=self.lease.heartbeat(PRIVATE,7,"pilot-one",a["claim_id"],a["fence_sha"])
+        self.assertEqual(self.lease.verify(PRIVATE,7,"pilot-one",b["claim_id"],b["fence_sha"])["repo"],PRIVATE)
+        self.assertEqual(self.lease.status(PRIVATE,7)["state"],"claimed")
+        c=self.lease.release(PRIVATE,7,"pilot-one",b["claim_id"],b["fence_sha"],"cancelled")
+        self.assertEqual((c["state"],c["issue"]),("released",7))
+        self.assertEqual(self.lease.claim(PRIVATE,7,"pilot-two")["epoch"],2)
+        self.assertEqual(len(self.messages()),4)
+        for msg in self.messages():
+            record=json.loads(msg[len(m.MARKER):])
+            self.assertNotIn("repo",record);self.assertNotIn("issue",record)
+            self.assertEqual(record["subject"],m.digest(PRIVATE,7))
+            self.assertNotIn("private-example",msg);self.assertNotIn("guillaume-flambard",msg)
+    def test_public_records_keep_their_clear_form(self):
+        lease=m.Lease(api=self.store,eligible=eligible,clock=lambda:NOW)
+        lease.claim(REPO,44,"pilot-one")
+        record=json.loads(self.messages()[0][len(m.MARKER):])
+        self.assertEqual((record["repo"],record["issue"]),(REPO,44));self.assertNotIn("subject",record)
+    def test_a_subject_of_another_issue_is_refused(self):
+        self.lease.claim(PRIVATE,7,"pilot-one")
+        key=m.ref(PRIVATE,7);head=self.store.refs[key]
+        record=json.loads(self.store.commits[head]["message"][len(m.MARKER):])
+        forged=self.store.create_commit(head,m.MARKER+json.dumps({**record,"subject":m.digest(PRIVATE,8)}))
+        self.store.advance(key,forged)
+        with self.assertRaisesRegex(m.Denied,"identity mismatch"):self.lease.status(PRIVATE,7)
+        both=self.store.create_commit(forged,m.MARKER+json.dumps({**record,"repo":PRIVATE,"issue":7}))
+        self.store.advance(key,both)
+        with self.assertRaisesRegex(m.Denied,"identity mismatch"):self.lease.status(PRIVATE,7)
+    def test_a_legacy_clear_private_record_is_redacted_at_its_next_heartbeat(self):
+        clear=m.Lease(api=self.store,eligible=lambda r,n:{**private_eligible(r,n),"repository_private":False},
+                      clock=lambda:NOW)
+        a=clear.claim(PRIVATE,7,"pilot-one")   # what the ledger wrote before #257
+        self.assertIn(PRIVATE,self.messages()[-1])
+        b=self.lease.heartbeat(PRIVATE,7,"pilot-one",a["claim_id"],a["fence_sha"])
+        last=json.loads(self.messages()[-1][len(m.MARKER):])
+        self.assertNotIn("repo",last);self.assertEqual(last["subject"],m.digest(PRIVATE,7))
+        self.assertEqual(self.lease.status(PRIVATE,7)["fence_sha"],b["fence_sha"])

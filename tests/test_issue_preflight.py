@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import subprocess
 import unittest
+import unittest.mock
 from unittest.mock import Mock
 
 path = Path(__file__).resolve().parents[1] / "scripts" / "issue_preflight.py"
@@ -57,7 +58,8 @@ class PreflightTests(unittest.TestCase):
 
     def test_disallows_other_repo_and_invalid_issue_input_without_api(self):
         for repo, num in [
-            ("memolabs-dev/emargo", NUMBER), ("guillaume-flambard/lab-infra", NUMBER),
+            ("memolabs-dev/emargo", NUMBER), ("someone-else/lab-infra", NUMBER),
+            ("memolabs-dev-evil/x", NUMBER), ("guillaume-flambard-x/y", NUMBER),
             ("memolabs-dev/drop;echo pwnd", NUMBER), (REPO, "-1"),
             (REPO, "123/../../x"), (REPO, "0"),
         ]:
@@ -110,7 +112,7 @@ class PreflightTests(unittest.TestCase):
     def test_refusal_message_maps_to_repo_not_allowed(self):
         # memo-bridge issue-lease.mjs maps a ledger error containing "allowlist" to repo_not_allowed.
         with self.assertRaises(preflight.PreflightDenied) as ctx:
-            preflight.checked_repo("guillaume-flambard/lab-infra")
+            preflight.checked_repo("someone-else/lab-infra")
         self.assertIn("allowlist", str(ctx.exception))
 
     def test_any_public_org_repo_is_in_scope(self):
@@ -122,6 +124,38 @@ class PreflightTests(unittest.TestCase):
         ])
         result = preflight.assess(repo, NUMBER, runner=fn)
         self.assertEqual(result["decision"], "DRY_RUN_ELIGIBLE_NOT_CLAIMED")
+
+    def test_any_public_repo_of_the_owner_account_is_in_scope(self):
+        # Owner decision of 2026-10-22 (memo-bridge#257): his own account is an owner namespace.
+        repo = "guillaume-flambard/spec-guard"
+        fn = Mock(side_effect=[
+            subprocess.CompletedProcess([], 0, json.dumps(repo_info(full_name=repo)), ""),
+            subprocess.CompletedProcess([], 0, json.dumps(issue_info(html_url=f"https://github.com/{repo}/issues/{NUMBER}")), ""),
+        ])
+        result = preflight.assess(repo, NUMBER, runner=fn)
+        self.assertEqual(result["repository"], repo)
+        self.assertIs(result["repository_private"], False)
+
+    def test_private_owner_account_repo_needs_owner_enrollment(self):
+        repo = "guillaume-flambard/private-example"
+        fn = Mock(side_effect=[
+            subprocess.CompletedProcess([], 0, json.dumps(repo_info(full_name=repo, private=True)), ""),
+        ])
+        with self.assertRaisesRegex(preflight.PreflightDenied, "enrollment"):
+            preflight.assess(repo, NUMBER, runner=fn)
+        self.assertEqual(fn.call_count, 1, "the Issue is never read")
+
+    def test_enrolled_private_repo_receipt_says_private(self):
+        repo = "guillaume-flambard/private-example"
+        fn = Mock(side_effect=[
+            subprocess.CompletedProcess([], 0, json.dumps(repo_info(full_name=repo, private=True)), ""),
+            subprocess.CompletedProcess([], 0, json.dumps(issue_info(html_url=f"https://github.com/{repo}/issues/{NUMBER}")), ""),
+        ])
+        with unittest.mock.patch.object(preflight.owner_private, "allowed", return_value=True) as enrolled:
+            result = preflight.assess(repo, NUMBER, runner=fn)
+        enrolled.assert_called_once_with(repo)
+        self.assertIs(result["repository_private"], True)
+        self.assertNotIn("UNTRUSTED", json.dumps(result))
 
     def test_private_org_repo_needs_owner_enrollment(self):
         repo = "memolabs-dev/emargo"

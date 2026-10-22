@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""GitHub Git-ref lease for public STAR Issues; never executes tasks.
+"""GitHub Git-ref lease for STAR Issues; never executes tasks.
 
 Owned by Memo Coordinator: this is the lease backend that memolabs-dev/memo-bridge serves to
 every AI client (docs/COORDINATOR.md there). memo-bridge CI runs it from this repository's main
 branch, so any change here must keep that CI green. Keep the CLI, its JSON receipts and its
 LEASE_DENIED messages backward compatible.
+
+The ledger repository is public. A lease on a private repository (memo-bridge#257) therefore
+records no repository name and no Issue number: its record carries `subject`, the hex digest
+already used as the ref name, in place of `repo` and `issue`. Records written before keep their
+clear form and stay readable. The digest is unsalted: whoever guesses an exact `owner/repo#n`
+can still confirm that this Issue was leased, and nothing more.
 """
 import argparse
 from datetime import datetime,timedelta,timezone
@@ -28,9 +34,13 @@ def date(s):
         return d.astimezone(timezone.utc)
     except (ValueError,TypeError):raise Denied("Malformed lease expiration") from None
 
-def ref(repo,n):
+def digest(repo,n):
     preflight.checked_repo(repo);num=preflight.checked_number(n)
-    return PREFIX+hashlib.sha256((repo+"#"+str(num)).encode()).hexdigest()
+    return hashlib.sha256((repo+"#"+str(num)).encode()).hexdigest()
+def ref(repo,n):return PREFIX+digest(repo,n)
+# Identity fields of a stored record: clear for a public repository, `subject` for a private one.
+def identity(repo,n,private):
+    return {"subject":digest(repo,n)} if private else {"repo":repo,"issue":int(n)}
 
 class Github:
     def req(self,verb,path,body=None):
@@ -73,7 +83,11 @@ class Lease:
         if not msg.startswith(MARKER):raise Denied("Unknown lease format")
         try:r=json.loads(msg[len(MARKER):])
         except ValueError:raise Denied("Malformed lease record") from None
-        if not isinstance(r,dict) or r.get("repo")!=repo or r.get("issue")!=int(number):
+        if not isinstance(r,dict):raise Denied("Lease identity mismatch")
+        if "subject" in r:
+            if "repo" in r or "issue" in r or r.get("subject")!=digest(repo,number):
+                raise Denied("Lease identity mismatch")
+        elif r.get("repo")!=repo or r.get("issue")!=int(number):
             raise Denied("Lease identity mismatch")
         if r.get("state") not in ("claimed","released") or not ID.fullmatch(str(r.get("claim_id",""))):
             raise Denied("Invalid stored lease")
@@ -87,9 +101,10 @@ class Lease:
         else:self.api.advance(key,new)              # non-force sibling conflict
         if self.api.head(key)!=new:raise Denied("Concurrent lease change")
         return new
-    def receipt(self,key,sha,r):
+    def receipt(self,key,sha,r,repo,number):
+        # repo and issue come from the validated request: a private record does not store them.
         return {"reference":key,"fence_sha":sha,"claim_id":r["claim_id"],"worker":r["worker"],
-                "repo":r["repo"],"issue":r["issue"],"epoch":r["epoch"],
+                "repo":repo,"issue":int(number),"epoch":r["epoch"],
                 "state":r["state"],"expires_at":r["expires_at"],
                 "execution_performed":False,"deployment_performed":False}
     def claim(self,repo,number,worker,ttl=300):
@@ -102,7 +117,8 @@ class Lease:
         nonce=self.make_id()
         if not ID.fullmatch(nonce):raise Denied("Invalid claim ID")
         reason="new" if prev is None else "released_reclaim" if prev["state"]=="released" else "expired_recovery"
-        r={"repo":repo,"issue":int(number),"worker":worker,"claim_id":nonce,
+        private=before.get("repository_private") is True
+        r={**identity(repo,number,private),"worker":worker,"claim_id":nonce,
            "state":"claimed","epoch":prev["epoch"]+1 if prev else 1,
            "reason":reason,"issued_at":stamp(now),"expires_at":stamp(now+timedelta(seconds=ttl)),
            "issue_updated_at":before["issue_updated_at"],"issue_body_sha256":before["issue_body_sha256"]}
@@ -116,7 +132,7 @@ class Lease:
             try:self.release(repo,number,worker,nonce,child,"cancelled")
             except Exception:pass
             raise Denied("Post-claim preflight failed; execution forbidden") from None
-        return self.receipt(key,child,r)
+        return self.receipt(key,child,r,repo,number)
     def status(self,repo,number):
         """Read-only view of the lease. Worker, claim ID and expiry are already public in the
         lease commit; exposing them lets a client recover a claim whose write outcome it lost."""
@@ -136,23 +152,30 @@ class Lease:
         if date(r["expires_at"])<=self.clock():raise Denied("Lease expired")
         return key,sha,r
     def verify(self,repo,number,worker,claim_id,fence):
+        return self.checked(repo,number,worker,claim_id,fence)[0]
+    def checked(self,repo,number,worker,claim_id,fence):
         key,sha,r=self.owned(repo,number,worker,claim_id,fence)
         item=self.held_eligible(repo,number)
         if r["issue_body_sha256"]!=item["issue_body_sha256"]:
             raise Denied("Issue changed since claim")
-        return self.receipt(key,sha,r)
+        return self.receipt(key,sha,r,repo,number),item
     def heartbeat(self,repo,number,worker,claim_id,fence,ttl=300):
         if not 60<=ttl<=1800:raise Denied("Invalid TTL")
         key,sha,r=self.owned(repo,number,worker,claim_id,fence)
-        self.verify(repo,number,worker,claim_id,fence)
+        _,item=self.checked(repo,number,worker,claim_id,fence)
         now=self.clock()
         new={**r,"last_heartbeat":stamp(now),"expires_at":stamp(now+timedelta(seconds=ttl))}
-        return self.receipt(key,self.append(key,sha,new),new)
+        if item.get("repository_private") is True:
+            # A clear record of a private repository, written before memo-bridge#257, drops its
+            # identity fields at its next heartbeat; the earlier commits stay in history.
+            new={k:v for k,v in new.items() if k not in ("repo","issue","subject")}
+            new.update(identity(repo,number,True))
+        return self.receipt(key,self.append(key,sha,new),new,repo,number)
     def release(self,repo,number,worker,claim_id,fence,outcome):
         if outcome not in OUTCOMES:raise Denied("Invalid outcome")
         key,sha,r=self.owned(repo,number,worker,claim_id,fence)
         new={**r,"state":"released","outcome":outcome,"released_at":stamp(self.clock())}
-        return self.receipt(key,self.append(key,sha,new),new)
+        return self.receipt(key,self.append(key,sha,new),new,repo,number)
 
 def cli():
     parser=argparse.ArgumentParser(description=__doc__)
