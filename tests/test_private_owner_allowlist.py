@@ -29,6 +29,7 @@ class PrivateOwnerAllowlistTests(unittest.TestCase):
             "MEMO_BRIDGE_MAC_RUNTIME_ENABLED": "enabled",
             "MEMO_BRIDGE_OWNER_SUB": SUB,
             "MEMO_BRIDGE_OWNER_PRIVATE_REPOS_FILE": str(self.path),
+            "MEMO_BRIDGE_LEDGER_OWNER_CALL": "1",
         }
 
     def allowed(self, repo=CDKF, **kwargs):
@@ -107,6 +108,17 @@ class PrivateOwnerAllowlistTests(unittest.TestCase):
             self.assertFalse(policy.allowed(CDKF, environ=dict(stdio, MEMO_BRIDGE_AGENT_MODE=mode), platform="darwin",
                                             home=self.home, uid=os.geteuid()))
 
+    def test_a_new_lease_needs_the_owner_marker_a_holder_does_not(self):
+        # Fix pass of memo-bridge#258, finding 2: Memo Bridge sets the marker per call, for the
+        # owner's principals only. Without it no new private lease is granted; the current holder's
+        # own checks (verify, heartbeat: holding=True) do not need it.
+        bare = {k: v for k, v in self.env.items() if k != "MEMO_BRIDGE_LEDGER_OWNER_CALL"}
+        for env in [bare, dict(bare, MEMO_BRIDGE_LEDGER_OWNER_CALL="0"), dict(bare, MEMO_BRIDGE_LEDGER_OWNER_CALL="true")]:
+            self.assertFalse(policy.allowed(CDKF, environ=env, platform="darwin", home=self.home, uid=os.geteuid()))
+            self.assertTrue(policy.allowed(CDKF, environ=env, platform="darwin", home=self.home, uid=os.geteuid(), holding=True))
+        self.assertFalse(policy.allowed("memolabs-dev/unlisted", environ=bare, platform="darwin", home=self.home,
+                                        uid=os.geteuid(), holding=True), "holding never enrolls a repository")
+
     def test_limit_is_one_hundred_repositories(self):
         repos = [f"memolabs-dev/r{i}" for i in range(99)] + [CDKF]
         self.path.write_text(json.dumps({"schema": policy.SCHEMA, "owner_sub": SUB, "repos": repos}))
@@ -115,6 +127,52 @@ class PrivateOwnerAllowlistTests(unittest.TestCase):
         self.path.write_text(json.dumps({"schema": policy.SCHEMA, "owner_sub": SUB, "repos": repos + ["memolabs-dev/r100"]}))
         self.path.chmod(0o600)
         self.assertFalse(self.allowed())
+
+
+class LeaseKeyTests(unittest.TestCase):
+    """Fix pass of memo-bridge#258, finding 3: the owner's key for private lease names."""
+    KEY = "ab" * 32
+
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        self.home = Path(self.folder.name).resolve()
+        base = self.home / ".local/share/memo-bridge/owner-policy"
+        base.mkdir(parents=True)
+        self.repos = base / "private-repos.json"
+        self.repos.write_text(json.dumps({"schema": policy.SCHEMA, "owner_sub": SUB, "repos": [CDKF]}))
+        self.repos.chmod(0o600)
+        self.path = base / "lease-key.json"
+        self.write({"schema": policy.LEASE_KEY_SCHEMA, "owner_sub": SUB, "key": self.KEY})
+        self.env = {"MEMO_BRIDGE_HOST": "mac", "MEMO_BRIDGE_AGENT_MODE": "stdio", "MEMO_BRIDGE_OWNER_SUB": SUB,
+                    "MEMO_BRIDGE_OWNER_PRIVATE_REPOS_FILE": str(self.repos),
+                    "MEMO_BRIDGE_OWNER_LEASE_KEY_FILE": str(self.path)}
+
+    def write(self, data, mode=0o600):
+        self.path.write_text(json.dumps(data))
+        self.path.chmod(mode)
+
+    def key(self, repo=CDKF, env=None, platform="darwin"):
+        return policy.lease_key(repo, environ=self.env if env is None else env, platform=platform, home=self.home, uid=os.geteuid())
+
+    def test_an_enrolled_repository_gets_the_key_without_the_owner_marker(self):
+        self.assertEqual(self.key(), bytes.fromhex(self.KEY))
+        self.assertIsNone(self.key("memolabs-dev/unlisted"), "a public or non-enrolled repository keeps the plain name")
+
+    def test_no_key_off_the_owner_mac_or_from_an_untrusted_file(self):
+        self.assertIsNone(self.key(platform="linux"))
+        self.assertIsNone(self.key(env=dict(self.env, MEMO_BRIDGE_HOST="vps")))
+        self.assertIsNone(self.key(env=dict(self.env, MEMO_BRIDGE_AGENT_MODE="probe")))
+        self.assertIsNone(self.key(env={k: v for k, v in self.env.items() if k != "MEMO_BRIDGE_OWNER_LEASE_KEY_FILE"}))
+        for data, mode in [({"schema": policy.LEASE_KEY_SCHEMA, "owner_sub": SUB, "key": self.KEY}, 0o644),
+                           ({"schema": policy.LEASE_KEY_SCHEMA, "owner_sub": "00000000-0000-0000-0000-000000000000", "key": self.KEY}, 0o600),
+                           ({"schema": policy.SCHEMA, "owner_sub": SUB, "key": self.KEY}, 0o600),
+                           ({"schema": policy.LEASE_KEY_SCHEMA, "owner_sub": SUB, "key": "ab" * 16}, 0o600),
+                           ({"schema": policy.LEASE_KEY_SCHEMA, "owner_sub": SUB, "key": "zz" * 32}, 0o600),
+                           ({"schema": policy.LEASE_KEY_SCHEMA, "owner_sub": SUB, "key": self.KEY, "extra": 1}, 0o600)]:
+            with self.subTest(data=data, mode=mode):
+                self.write(data, mode)
+                self.assertIsNone(self.key())
 
 
 class ExternalProjectsTests(unittest.TestCase):
@@ -133,6 +191,7 @@ class ExternalProjectsTests(unittest.TestCase):
             "MEMO_BRIDGE_AGENT_MODE": "stdio",
             "MEMO_BRIDGE_OWNER_SUB": SUB,
             "MEMO_BRIDGE_OWNER_EXTERNAL_PROJECTS_FILE": str(self.path),
+            "MEMO_BRIDGE_LEDGER_OWNER_CALL": "1",
         }
 
     def write(self, data, mode=0o600):

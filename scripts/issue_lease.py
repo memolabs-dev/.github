@@ -8,13 +8,23 @@ LEASE_DENIED messages backward compatible.
 
 The ledger repository is public. A lease on a private repository (memo-bridge#257) therefore
 records no repository name and no Issue number: its record carries `subject`, the hex digest
-already used as the ref name, in place of `repo` and `issue`. Records written before keep their
-clear form and stay readable. The digest is unsalted: whoever guesses an exact `owner/repo#n`
-can still confirm that this Issue was leased, and nothing more.
+used as the ref name, in place of `repo` and `issue`.
+
+Issue numbers are small sequential integers, so an unsalted sha256('<repo>#<n>') is enumerable
+in seconds (fix pass of memo-bridge#258, finding 3). For an enrolled private repository the ref
+name and `subject` are therefore HMAC-SHA256 under the owner's key (keyed_digest), which only the
+owner's Mac holds (private_owner_allowlist.lease_key, a 0600 owner file); the record keeps a
+keyed body digest (keyed_body) and no Issue update time. Without the key a private claim fails
+closed. What stays public for a private lease: that some lease exists, its worker id, epoch,
+state and times. Public repositories keep the plain digest and their clear records.
+
+Records written before stay readable where they are: a clear record, or a `subject` record under
+the unsalted name. Their holder keeps working on that ref; the next lease of that Issue moves to
+the keyed name, after the legacy lease is released or expired.
 """
 import argparse
 from datetime import datetime,timedelta,timezone
-import hashlib,json,re,subprocess,sys,uuid
+import hashlib,hmac,json,re,subprocess,sys,uuid
 import issue_preflight as preflight
 
 LEDGER="memolabs-dev/.github"
@@ -38,6 +48,11 @@ def digest(repo,n):
     preflight.checked_repo(repo);num=preflight.checked_number(n)
     return hashlib.sha256((repo+"#"+str(num)).encode()).hexdigest()
 def ref(repo,n):return PREFIX+digest(repo,n)
+def keyed_digest(key,repo,n):
+    preflight.checked_repo(repo);num=preflight.checked_number(n)
+    return hmac.new(key,("star-lease-v1\0"+repo+"#"+str(num)).encode(),hashlib.sha256).hexdigest()
+def keyed_body(key,body_sha):
+    return hmac.new(key,("star-lease-v1-body\0"+str(body_sha)).encode(),hashlib.sha256).hexdigest()
 # Identity fields of a stored record: clear for a public repository, `subject` for a private one.
 def identity(repo,n,private):
     return {"subject":digest(repo,n)} if private else {"repo":repo,"issue":int(n)}
@@ -69,22 +84,31 @@ class Github:
                  {"sha":sha,"force":False})
 
 class Lease:
-    def __init__(self,api=None,eligible=None,clock=None,make_id=None):
+    def __init__(self,api=None,eligible=None,clock=None,make_id=None,keyring=None):
         self.api=api or Github()
+        # The owner's key for an enrolled private repository, or None (public, or not his Mac).
+        self.keyring=keyring or (lambda repo:preflight.owner_private.lease_key(repo))
         self.eligible=eligible or preflight.assess
         # The holder re-checks the Issue with its own agent:working label allowed.
         self.held_eligible=eligible or (lambda repo,number:preflight.assess(repo,number,holding=True))
         self.clock=clock or (lambda:datetime.now(timezone.utc))
         self.make_id=make_id or (lambda:uuid.uuid4().hex)
-    def current(self,repo,number):
-        key=ref(repo,number);head=self.api.head(key)
-        if head is None:return key,None,None
+    def key(self,repo):
+        k=self.keyring(repo)
+        if k is None:return None
+        if not isinstance(k,(bytes,bytearray)) or len(k)<32:raise Denied("Invalid owner lease key")
+        return bytes(k)
+    def read(self,key,head,repo,number,subject):
+        """The record at `head`. `subject`: the keyed digest a keyed ref must carry, or None for
+        an unsalted ref (clear identity, or the unsalted digest)."""
         msg=self.api.commit(head).get("message","")
         if not msg.startswith(MARKER):raise Denied("Unknown lease format")
         try:r=json.loads(msg[len(MARKER):])
         except ValueError:raise Denied("Malformed lease record") from None
         if not isinstance(r,dict):raise Denied("Lease identity mismatch")
-        if "subject" in r:
+        if subject is not None:
+            if "repo" in r or "issue" in r or r.get("subject")!=subject:raise Denied("Lease identity mismatch")
+        elif "subject" in r:
             if "repo" in r or "issue" in r or r.get("subject")!=digest(repo,number):
                 raise Denied("Lease identity mismatch")
         elif r.get("repo")!=repo or r.get("issue")!=int(number):
@@ -92,7 +116,24 @@ class Lease:
         if r.get("state") not in ("claimed","released") or not ID.fullmatch(str(r.get("claim_id",""))):
             raise Denied("Invalid stored lease")
         if type(r.get("epoch"))!=int or r["epoch"]<1:raise Denied("Invalid lease epoch")
-        date(r.get("expires_at"));return key,head,r
+        date(r.get("expires_at"));return r
+    def current(self,repo,number):
+        """(ref, head, record) of the Issue's lease. With the owner's key: the keyed ref, or else a
+        legacy lease under the unsalted name (still readable and usable by its holder)."""
+        plain=ref(repo,number);k=self.key(repo)
+        if k is not None:
+            kd=keyed_digest(k,repo,number);key=PREFIX+kd;head=self.api.head(key)
+            if head is not None:return key,head,self.read(key,head,repo,number,kd)
+            legacy=self.api.head(plain)
+            if legacy is None:return key,None,None
+            return plain,legacy,self.read(plain,legacy,repo,number,None)
+        head=self.api.head(plain)
+        if head is None:return plain,None,None
+        return plain,head,self.read(plain,head,repo,number,None)
+    def body(self,repo,number,key,body_sha):
+        """The body digest as a record at `key` stores it: keyed on a keyed ref."""
+        k=self.key(repo)
+        return keyed_body(k,body_sha) if k is not None and key==PREFIX+keyed_digest(k,repo,number) else body_sha
     def append(self,key,old,r):
         parent=old or self.api.head("refs/heads/main")
         if not SHA.fullmatch(str(parent)):raise Denied("Unverified ledger base SHA")
@@ -111,17 +152,27 @@ class Lease:
         key=ref(repo,number) # mandatory allowlist even if eligibility injected
         if not WORKER.fullmatch(worker) or not 60<=ttl<=1800:raise Denied("Invalid worker/TTL")
         before=self.eligible(repo,number);now=self.clock()
+        private=before.get("repository_private") is True
+        k=self.key(repo)
+        # A private lease is only ever written under the owner's key (fix pass of memo-bridge#258).
+        if private and k is None:raise Denied("Owner lease key unavailable; private lease refused")
         key,old,prev=self.current(repo,number)
         if prev and prev["state"]=="claimed" and date(prev["expires_at"])>now:
             raise Denied("Active lease exists")
         nonce=self.make_id()
         if not ID.fullmatch(nonce):raise Denied("Invalid claim ID")
         reason="new" if prev is None else "released_reclaim" if prev["state"]=="released" else "expired_recovery"
-        private=before.get("repository_private") is True
-        r={**identity(repo,number,private),"worker":worker,"claim_id":nonce,
-           "state":"claimed","epoch":prev["epoch"]+1 if prev else 1,
-           "reason":reason,"issued_at":stamp(now),"expires_at":stamp(now+timedelta(seconds=ttl)),
-           "issue_updated_at":before["issue_updated_at"],"issue_body_sha256":before["issue_body_sha256"]}
+        if private:
+            # The keyed name; a legacy lease under the unsalted name is left behind (its history
+            # stays there), and the epoch carries on from it.
+            kd=keyed_digest(k,repo,number)
+            if key!=PREFIX+kd:key,old=PREFIX+kd,None
+            r={"subject":kd,"issue_body_sha256":keyed_body(k,before["issue_body_sha256"])}
+        else:
+            r={**identity(repo,number,False),"issue_updated_at":before["issue_updated_at"],
+               "issue_body_sha256":before["issue_body_sha256"]}
+        r.update({"worker":worker,"claim_id":nonce,"state":"claimed","epoch":prev["epoch"]+1 if prev else 1,
+                  "reason":reason,"issued_at":stamp(now),"expires_at":stamp(now+timedelta(seconds=ttl))})
         child=self.append(key,old,r)
         try:
             after=self.eligible(repo,number)
@@ -156,7 +207,7 @@ class Lease:
     def checked(self,repo,number,worker,claim_id,fence):
         key,sha,r=self.owned(repo,number,worker,claim_id,fence)
         item=self.held_eligible(repo,number)
-        if r["issue_body_sha256"]!=item["issue_body_sha256"]:
+        if r["issue_body_sha256"]!=self.body(repo,number,key,item["issue_body_sha256"]):
             raise Denied("Issue changed since claim")
         return self.receipt(key,sha,r,repo,number),item
     def heartbeat(self,repo,number,worker,claim_id,fence,ttl=300):
@@ -165,10 +216,11 @@ class Lease:
         _,item=self.checked(repo,number,worker,claim_id,fence)
         now=self.clock()
         new={**r,"last_heartbeat":stamp(now),"expires_at":stamp(now+timedelta(seconds=ttl))}
-        if item.get("repository_private") is True:
+        if item.get("repository_private") is True and "subject" not in r:
             # A clear record of a private repository, written before memo-bridge#257, drops its
-            # identity fields at its next heartbeat; the earlier commits stay in history.
-            new={k:v for k,v in new.items() if k not in ("repo","issue","subject")}
+            # identity fields at its next heartbeat; the earlier commits stay in history. It stays
+            # on its unsalted ref, so its subject is the unsalted digest.
+            new={k:v for k,v in new.items() if k not in ("repo","issue","subject","issue_updated_at")}
             new.update(identity(repo,number,True))
         return self.receipt(key,self.append(key,sha,new),new,repo,number)
     def release(self,repo,number,worker,claim_id,fence,outcome):

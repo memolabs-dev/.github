@@ -153,7 +153,7 @@ class PreflightTests(unittest.TestCase):
         ])
         with unittest.mock.patch.object(preflight.owner_private, "allowed", return_value=True) as enrolled:
             result = preflight.assess(repo, NUMBER, runner=fn)
-        enrolled.assert_called_once_with(repo)
+        enrolled.assert_called_once_with(repo, holding=False)
         self.assertIs(result["repository_private"], True)
         self.assertNotIn("UNTRUSTED", json.dumps(result))
 

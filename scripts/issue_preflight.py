@@ -102,7 +102,9 @@ def assess(repo, number, runner=subprocess.run, holding=False):
     # the owner's Mac-only opt-in policy. Anything else (unknown, archived) fails closed.
     if metadata.get("archived") is not False or metadata.get("private") not in (True, False):
         raise PreflightDenied("Repository privacy or enrollment mismatch")
-    if metadata.get("private") is True and not owner_private.allowed(repo):
+    # A new lease also needs the owner's per-call marker; the holder's own checks do not
+    # (private_owner_allowlist.allowed, fix pass of memo-bridge#258).
+    if metadata.get("private") is True and not owner_private.allowed(repo, holding=holding):
         raise PreflightDenied("Repository privacy or enrollment mismatch")
 
     issue = get_json("repos/" + repo + "/issues/" + str(number), runner)
