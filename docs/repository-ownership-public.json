@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-26",
+  "scope": "public organization repositories visible to authenticated Github account (not guaranteed complete)",
+  "owner": "memolabs-dev",
+  "repositories": [
+    {
+      "repo": "memolabs-dev/.github",
+      "githubRepositoryId": "1416749183",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/agent-reality-bench",
+      "githubRepositoryId": "1395156934",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/aidd-guard",
+      "githubRepositoryId": "1365470077",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/cuesheet",
+      "githubRepositoryId": "1394916687",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/drop",
+      "githubRepositoryId": "1410463670",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/freelance-growth",
+      "githubRepositoryId": "1425979220",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/intentlane",
+      "githubRepositoryId": "1379888058",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/kollio-mac",
+      "githubRepositoryId": "1388018900",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/lab-hub",
+      "githubRepositoryId": "1416138125",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/life-os",
+      "githubRepositoryId": "1352588286",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/mediterranean-rescue",
+      "githubRepositoryId": "1433119674",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/memo-bridge",
+      "githubRepositoryId": "1417334116",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/memo-cc",
+      "githubRepositoryId": "1283720692",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/mergify-config",
+      "githubRepositoryId": "1424260249",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/mobile-explorer",
+      "githubRepositoryId": "1422117945",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/navirox",
+      "githubRepositoryId": "1374340536",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/problem-intelligence-engine",
+      "githubRepositoryId": "1415401021",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/project-template",
+      "githubRepositoryId": "1424396447",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/rebuild-radar",
+      "githubRepositoryId": "1422117761",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/stasis",
+      "githubRepositoryId": "1289116779",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/trufflo",
+      "githubRepositoryId": "1404344905",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/uni-protocol",
+      "githubRepositoryId": "1370011909",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/valve",
+      "githubRepositoryId": "1391460663",
+      "visibility": "public",
+      "archived": false
+    },
+    {
+      "repo": "memolabs-dev/world-kernel",
+      "githubRepositoryId": "1391408899",
+      "visibility": "public",
+      "archived": false
+    }
+  ],
+  "overlaps": [
+    {
+      "personal": "guillaume-flambard/mediterranean-rescue",
+      "organization": "memolabs-dev/mediterranean-rescue",
+      "status": "org_declared_canonical_reconciliation_pending"
+    },
+    {
+      "personal": "guillaume-flambard/lab-hub",
+      "organization": "memolabs-dev/lab-hub",
+      "status": "personal_archived_private"
+    },
+    {
+      "personal": "guillaume-flambard/uni",
+      "organization": "memolabs-dev/uni-protocol",
+      "status": "historical_different_scope"
+    },
+    {
+      "personal": "guillaume-flambard/kollio",
+      "organization": "memolabs-dev/kollio-mac",
+      "status": "distinct_scope"
+    }
+  ]
+}
