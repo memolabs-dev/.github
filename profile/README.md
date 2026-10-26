@@ -26,6 +26,8 @@ We show **observable software and limitations** together. These examples do not 
 | [Cuesheet](https://github.com/memolabs-dev/cuesheet) | Portable primitives for orchestration and independent verification. **Research and development.** |
 | [Navirox](https://github.com/memolabs-dev/navirox) | Web-to-native mobile tooling, initially focused on Vue. **Under development.** |
 
+**[Repository ownership and canonical source policy](../docs/repository-ownership-policy.md)** — why personal and organization repos differ, and how duplicate projects are prevented.
+
 ## Our approach
 
 A green test suite is useful evidence, not proof of readiness for an external user. We favor reproducible examples, comprehensible interfaces and explicitly stated limitations.
