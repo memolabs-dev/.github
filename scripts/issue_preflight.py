@@ -33,6 +33,7 @@ PUBLIC_ALLOWLIST = frozenset({
     "memolabs-dev/uni-protocol",
     "memolabs-dev/problem-intelligence-engine",
     "memolabs-dev/drop",
+    "memolabs-dev/freelance-growth",
     "memolabs-dev/lab-hub",
     "memolabs-dev/agent-reality-bench",
     "memolabs-dev/aidd-guard",
