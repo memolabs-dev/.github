@@ -1,0 +1,54 @@
+name: Memo Labs Engineering Project Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Add missing Issues after a successful dry run'
+        type: boolean
+        required: true
+        default: false
+  schedule:
+    - cron: '17 2,8,14,20 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engineering-projects-sync
+  cancel-in-progress: false
+
+jobs:
+  organization:
+    if: >-
+      github.repository == 'memolabs-dev/.github' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       vars.MEMOLABS_PROJECTS_SYNC_ENABLED == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify Projects credential is configured
+        env:
+          GH_TOKEN: ${{ secrets.MEMOLABS_PROJECTS_TOKEN }}
+        shell: bash
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo '::error::Configure MEMOLABS_PROJECTS_TOKEN with scoped Projects write and repo read permissions.'
+            exit 1
+          fi
+      - name: Reconcile read-only dry run
+        env:
+          GH_TOKEN: ${{ secrets.MEMOLABS_PROJECTS_TOKEN }}
+        shell: bash
+        run: python3 scripts/projects_sync.py --org memolabs-dev --project-id PVT_kwDOFFp4LM4BnzMe
+      - name: Apply missing Issue links idempotently
+        if: github.event_name == 'schedule' || inputs.apply
+        env:
+          GH_TOKEN: ${{ secrets.MEMOLABS_PROJECTS_TOKEN }}
+        shell: bash
+        run: python3 scripts/projects_sync.py --org memolabs-dev --project-id PVT_kwDOFFp4LM4BnzMe --apply --max-add 250
